@@ -1,0 +1,12 @@
+{
+  "name": "lumir-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LUMIR — Android to Windows Interactive Mirroring (UI prototype, Tauri 2)",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

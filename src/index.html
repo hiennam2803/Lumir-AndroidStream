@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LUMIR — Unified Control Desk (Demo)</title>
+<link rel="stylesheet" href="styles/fonts.css">
+<link rel="stylesheet" href="styles/main.css">
+<link rel="stylesheet" href="styles/tauri.css">
+<script src="scripts/tauri-bridge.js"></script>
+</head><body>
+<div id="win" class="st-on v-n">
+<header id="title">
+ <div class="brand"><div class="logo"><svg viewBox="0 0 24 24"><path d="M8 4v13h9"/></svg></div><b>LUMIR</b><span class="sep"></span><span class="dev">Samsung Galaxy S24 Ultra</span></div>
+ <div class="right">
+  <div class="conn"><span class="cs" id="cs"></span><div class="seg" id="seg"><button class="on" data-c="USB">USB</button><button data-c="LAN">LAN</button></div></div>
+  <button class="wb" data-tip="Thu nhỏ" data-act="Thu nhỏ — không khả dụng trong bản web"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+  <button class="wb x" data-tip="Đóng" data-act="Đóng — không khả dụng trong bản web"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+ </div>
+</header>
+<section id="metrics">
+ <div class="m"><small>Thiết bị</small><div class="nm"><span class="dot"></span>Galaxy S24 Ultra</div><span class="sim" id="mSt"></span></div>
+ <div class="m"><small>FPS</small><div class="v"><span id="mFps">–</span><i>fps</i></div></div>
+ <div class="m"><small>Độ trễ</small><div class="v"><span id="mLat">–</span><i>ms</i></div></div>
+ <div class="m"><small>Bitrate</small><div class="v"><span id="mBr">–</span><i>Mbps</i></div></div>
+ <div class="m"><small>Độ phân giải</small><div class="v"><span id="mRes">–</span></div></div>
+</section>
+<main id="ws">
+ <div id="stage">
+  <div class="tag"><span class="sim">DEMO</span>Dữ liệu mô phỏng — chưa kết nối Android thật</div>
+  <div class="tools"><button id="bOv" class="on" data-tip="Ẩn/hiện overlay"><svg viewBox="0 0 24 24"><path d="M3 12s3.5-7 9-7 9 7 9 7-3.500 7-9 7-9-7-9-7z"/><circle cx="12" cy="12" r="3"/></svg></button><button id="bFloat" data-tip="Cửa sổ nổi"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="12" y="12" width="7" height="5" rx="1"/></svg></button><button id="bFull" data-tip="Toàn màn hình (Esc để thoát)"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button></div>
+  <div class="flnote">Preview đang ở cửa sổ nổi<br>(góc dưới phải)</div>
+  <div id="phone"><div id="scr">
+   <div class="sb"><span id="sbT">9:41</span><span>86%</span></div>
+   <div class="live" id="live"></div>
+   <div class="home"><div><div class="clock" id="pClock">9:41</div><div class="date" id="pDate"></div></div><div class="grid" id="apps"></div></div>
+   <div class="dock" id="dock"></div>
+   <div id="off"><div><div class="spin"></div><span id="offT"></span></div></div>
+  </div></div>
+ </div>
+ <aside id="panel">
+  <div><div class="pt">Thiết bị</div><dl class="kv">
+   <dt>Tên</dt><dd>Galaxy S24 Ultra</dd><dt>Model</dt><dd>SM-S928B</dd><dt>Android</dt><dd>14 (One UI 6.1)</dd>
+   <dt>Pin</dt><dd>86%</dd><dt>Nhiệt độ</dt><dd id="kT"></dd><dt>Codec</dt><dd id="kC"></dd><dt>ADB</dt><dd id="kA"></dd></dl></div>
+  <div><div class="pt">Hướng màn hình</div><div class="rot" id="rot">
+   <button class="on" data-o="p"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/></svg>Dọc</button>
+   <button data-o="l"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/></svg>Ngang</button>
+   <button data-o="r" title="Xoay"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button></div></div>
+  <div><div class="pt">Chất lượng truyền</div><div class="qs" id="qs"></div><div class="qd" id="qd"></div>
+   <div class="cu" id="cu">
+    <label>Độ phân giải<span></span><span></span><select id="cR"><option value="720x1560">720 × 1560</option><option value="1080x2340">1080 × 2340</option><option value="1440x3120">1440 × 3120</option></select></label>
+    <label>FPS<input id="cF" type="range" min="24" max="144" step="6"><output id="oF"></output></label>
+    <label>Bitrate<input id="cB" type="range" min="4" max="60" step="1"><output id="oB"></output></label>
+    <label>Codec<span></span><span></span><select id="cC"><option>H.264</option><option>H.265</option></select></label>
+   </div></div>
+ </aside>
+</main>
+<nav id="bar"></nav>
+<footer id="status"><div><span><i class="dot"></i><span id="sE">Engine Ready</span></span><span id="sC">USB</span><span>Hardware Decoding</span></div><span>Lumir 0.1.0 · Demo</span></footer>
+<div id="toast"></div>
+<div id="km"><div><h3>Key Mapping (mô phỏng)</h3><p><span>Chạm vào vị trí</span><b>Phím gán</b></p><p><span>Bắn (x 82%, y 70%)</span><b>Chuột trái</b></p><p><span>Joystick trái</span><b>W A S D</b></p><p><span>Nhảy</span><b>Space</b></p><button id="kmX">Đóng</button></div></div>
+</div>
+<script src="scripts/main.js"></script>
+</body></html>

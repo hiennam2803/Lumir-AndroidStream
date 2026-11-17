@@ -1,0 +1,4 @@
+/* Chỉ áp dụng khi chạy trong Tauri (class .tauri trên <html> do tauri-bridge.js thêm).
+   Cửa sổ native đã là khung 1024x720 trong suốt, nên bỏ nền ngoài + bóng đổ của bản web. */
+html.tauri,html.tauri body{background:transparent}
+html.tauri #win{box-shadow:none}
