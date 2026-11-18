@@ -1,88 +1,135 @@
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-const I={home:'<path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',back:'<path d="M15 5l-7 7 7 7"/>',rec:'<rect x="5" y="5" width="14" height="14" rx="3"/>',mouse:'<path d="M5 3l14 7-6 2-2 6z"/>',kb:'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',map:'<path d="M6 12h4m-2-2v4M15 11h.01M18 13h.01"/><rect x="2" y="6" width="20" height="12" rx="6"/>',off:'<path d="M12 3v9M6.4 6.4a8 8 0 1 0 11.2 0"/>',re:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>',phone:'<path d="M22 17v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3l2 5-2.5 1.5a11 11 0 0 0 6 6L16 14l5 2z"/>',msg:'<path d="M21 12a8 8 0 0 1-12 7l-5 1 1-4.5A8 8 0 1 1 21 12z"/>',cam:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',music:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',img:'<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.5"/><path d="M21 15l-5-5L5 21"/>',pin:'<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',set:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'};
-const svg=n=>`<svg viewBox="0 0 24 24">${I[n]}</svg>`;
-$('#apps').innerHTML=[['cal','Lịch','#e5584f'],['cam','Camera','#5b6472'],['img','Ảnh','#4f8cf0'],['globe','Web','#2fa98f'],['music','Nhạc','#d4577f'],['mail','Mail','#4a7bd0'],['pin','Bản đồ','#3da56a'],['set','Cài đặt','#7b6fcf']].map(a=>`<div class="ap"><div class="ic" style="background:${a[2]}">${svg(a[0])}</div>${a[1]}</div>`).join('');
-$('#dock').innerHTML=[['phone','#3da56a'],['msg','#4f8cf0'],['globe','#2fa98f'],['cam','#5b6472']].map(a=>`<div class="ic" style="background:${a[1]}">${svg(a[0])}</div>`).join('');
-/* ---- state: một nguồn sự thật duy nhất ---- */
-const M={
- smooth:{n:'Smoothness',d:'Ưu tiên FPS cao, độ trễ thấp',fps:120,lat:18,br:12.6,c:'H.264',t:33.4,r:'720x1560'},
- bal:{n:'Balanced',d:'Cân bằng hình ảnh và độ mượt',fps:60,lat:32,br:18.4,c:'H.264',t:34.2,r:'1080x2340'},
- qual:{n:'Image Quality',d:'Ưu tiên độ nét, bitrate cao',fps:30,lat:46,br:38.2,c:'H.265',t:36.8,r:'1440x3120'},
- custom:{n:'Custom',d:'Tự cấu hình độ phân giải, FPS, bitrate, codec',fps:90,lat:28,br:24,c:'H.265',t:35.1,r:'1080x2340'}};
-const S={mode:'bal',o:'p',view:'n',conn:'USB',st:'on',ov:true,tog:{}};
-const CS={on:['Đã kết nối','ok'],ing:['Đang kết nối…','wn'],off:['Đã ngắt','er'],fail:['Kết nối thất bại','er']};
-const cur=()=>M[S.mode];
-let anim=0,tm,endArm,jit;
-const fmt=(v,id)=>id==='#mBr'?v.toFixed(1):Math.round(v);
-function num(id,v){const e=$(id),a=parseFloat(e.textContent)||v,t=performance.now(),k=++anim;
- (function f(n){if(k!==anim)return;const p=Math.min(1,(n-t)/350);e.textContent=fmt(a+(v-a)*p,id);p<1?requestAnimationFrame(f):anim=0})(t)}
-function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(tm);tm=setTimeout(()=>e.classList.remove('show'),1800)}
-/* ---- render ---- */
-function render(){
- const m=cur(),on=S.st==='on',[w,h]=m.r.split('x').map(Number),res=S.o==='p'?`${w} × ${h}`:`${h} × ${w}`;
- const w$=$('#win');w$.className=`st-${S.st} v-${S.view} ${S.o==='l'?'land':''} ${S.ov?'':'hide-ov'}`;
- $('#phone').classList.toggle('land',S.o==='l');
- $('#bFloat').classList.toggle('on',S.view==='fl');$('#bFull').classList.toggle('on',S.view==='full');$('#bOv').classList.toggle('on',S.ov);
- $$('#qs .q').forEach(b=>b.classList.toggle('on',b.dataset.m===S.mode));
- $$('#rot button[data-o]').forEach(b=>b.classList.toggle('on',b.dataset.o===S.o&&b.dataset.o!=='r'));
- $$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.c===S.conn));
- $('#qd').textContent=m.d;$('#cu').classList.toggle('show',S.mode==='custom');
- $('#cR').value=m.r;$('#cF').value=m.fps;$('#cB').value=m.br;$('#cC').value=m.c;$('#oF').textContent=m.fps;$('#oB').textContent=m.br+' Mbps';
- const dis=!on;$$('.cb[data-n],#qs .q,#rot button,#cu select,#cu input').forEach(b=>b.disabled=dis);
- $$('#seg button').forEach(b=>b.disabled=S.st==='ing');
- const cs=$('#cs');cs.textContent=CS[S.st][0];cs.className='cs '+CS[S.st][1];
- $('#mSt').textContent='MÔ PHỎNG · '+(on?'ONLINE':S.st==='ing'?'CONNECTING':'OFFLINE');$('#metrics').className=S.st==='ing'?'st-ing':on?'':'st-off';
- $('#sC').textContent=S.conn;$('#sE').textContent=on?'Engine Ready':'Engine Idle';
- const warn=m.t>=36;$('#kT').innerHTML=on?`<span class="${warn?'wn':''}">${m.t.toFixed(1)} °C · ${warn?'Ấm':'Bình thường'}</span>`:'–';
- $('#kC').textContent=on?m.c:'–';
- $('#kA').innerHTML=on?'<span class="ok">Device (mô phỏng)</span>':S.st==='ing'?'<span class="wn">Unauthorized…</span>':'<span class="er">Offline</span>';
- $('#offT').innerHTML={ing:`Đang kết nối qua ${S.conn}…`,off:'Mất tín hiệu<br>Nhấn “Kết nối lại” để tiếp tục',fail:`Không thể kết nối qua ${S.conn}<br>Nhấn “Thử lại”`,on:''}[S.st];
- $('#live').textContent=`LIVE · ${res} · ${m.fps}fps`;
- const b=$('#bEnd'),lbl={on:'Ngắt kết nối',ing:'Đang kết nối…',off:'Kết nối lại',fail:'Thử lại'}[S.st];
- b.className='cb end'+(S.st==='off'||S.st==='fail'?' re':'')+(endArm?' cf':'');b.disabled=S.st==='ing';
- b.querySelector('span').textContent=endArm?'Nhấn lại để xác nhận':lbl;b.querySelector('svg').innerHTML=on?I.off:I.re;
- if(on){num('#mFps',m.fps);num('#mLat',m.lat);num('#mBr',m.br)}else{anim++;['#mFps','#mLat','#mBr'].forEach(i=>$(i).textContent='–')}
- $('#mRes').textContent=on?res:'–';
- fit();
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const ic=n=>`<svg><use href="#i-${n}"/></svg>`;
+const VI={"Android Device Manager": "Trình quản lý thiết bị Android", "All": "Tất cả", "Connected": "Đã kết nối", "Offline": "Ngoại tuyến", "Disconnected": "Chưa kết nối", "Connecting": "Đang kết nối", "Error": "Lỗi", "ADB service ready": "Dịch vụ ADB sẵn sàng", "Filter devices": "Lọc thiết bị", "Settings": "Cài đặt", "More options": "Tùy chọn khác", "Refresh": "Làm mới", "Connect all": "Kết nối tất cả", "Add device": "Thêm thiết bị", "Ready": "Sẵn sàng", "Total devices": "Tổng thiết bị", "Last refresh": "Làm mới lần cuối", "Add LAN device": "Thêm thiết bị LAN", "Device IP address": "Địa chỉ IP thiết bị", "Port": "Cổng", "Device name (optional)": "Tên thiết bị (không bắt buộc)", "Cancel": "Hủy", "Close": "Đóng", "Living room tablet": "Máy tính bảng phòng khách", "General": "Chung", "Theme": "Giao diện", "Dark": "Tối", "Light": "Sáng", "System": "Theo hệ thống", "Language": "Ngôn ngữ", "Startup behavior": "Khi khởi động", "Open main panel": "Mở bảng chính", "Start in tray": "Chạy ẩn trong khay", "Restore last session": "Khôi phục phiên trước", "Minimize to tray": "Thu nhỏ xuống khay", "Connection": "Kết nối", "Default connection mode": "Chế độ kết nối mặc định", "Ask each time": "Hỏi mỗi lần", "Auto refresh": "Tự động làm mới", "Connection timeout": "Thời gian chờ kết nối", "5 seconds": "5 giây", "10 seconds": "10 giây", "30 seconds": "30 giây", "About": "Giới thiệu", "· Version 0.1.0 (prototype)": "· Phiên bản 0.1.0 (bản mẫu)", "Find, connect and manage Android devices over USB and your local network.": "Tìm, kết nối và quản lý thiết bị Android qua USB và mạng nội bộ.", "Done": "Xong", "Disconnect": "Ngắt kết nối", "Retry": "Thử lại", "Connect": "Kết nối", "Show details": "Xem chi tiết", "Resolution": "Độ phân giải", "Device ID": "ID thiết bị", "Status": "Trạng thái", "IP address": "Địa chỉ IP", "USB 3.0 cable": "Cáp USB 3.0", "Needs attention": "Cần kiểm tra", "{0} connected": "{0} đã kết nối", "No matching devices": "Không có thiết bị phù hợp", "Change the filter to see the other {0} devices.": "Đổi bộ lọc để xem các thiết bị {0} khác.", "No USB devices found": "Không tìm thấy thiết bị USB", "Connect your phone with a USB cable and enable USB debugging in Developer options.": "Cắm điện thoại bằng cáp USB và bật Gỡ lỗi USB trong Tùy chọn nhà phát triển.", "Scan again": "Quét lại", "No LAN devices found": "Không tìm thấy thiết bị LAN", "Make sure the phone and this PC are on the same Wi-Fi network, then add the phone by IP address.": "Đảm bảo điện thoại và máy tính cùng mạng Wi-Fi, rồi thêm điện thoại bằng địa chỉ IP.", "Device list refreshed": "Đã làm mới danh sách thiết bị", "Could not reach {0}. Check the network and retry.": "Không kết nối được {0}. Kiểm tra mạng rồi thử lại.", "All devices disconnected": "Đã ngắt kết nối tất cả thiết bị", "Demo data restored": "Đã khôi phục dữ liệu mẫu", "{0} disconnected": "{0} đã ngắt kết nối", "{0} list cleared": "Đã xóa danh sách {0}", "Copied to clipboard": "Đã sao chép", "{0} removed": "Đã xóa {0}", "Enter a valid IP address and port": "Nhập địa chỉ IP và cổng hợp lệ", "Device added": "Đã thêm thiết bị", "Unknown model": "Model không rõ", "Refresh all": "Làm mới tất cả", "Disconnect all": "Ngắt kết nối tất cả", "Restore demo data": "Khôi phục dữ liệu mẫu", "Disconnect all {0}": "Ngắt kết nối tất cả {0}", "Clear list (show empty state)": "Xóa danh sách (xem trạng thái trống)", "Refresh device": "Làm mới thiết bị", "Copy device ID": "Sao chép ID thiết bị", "Copy IP address": "Sao chép địa chỉ IP", "Remove device": "Xóa thiết bị"};
+let lang='en',theme='dark';
+const T=(k,...a)=>{let v=lang==='vi'&&VI[k]||k;a.forEach((x,i)=>v=v.replace('{'+i+'}',x));return v};
+const lb=x=>T(LBL[x]);
+const LBL={connected:'Connected',disconnected:'Disconnected',connecting:'Connecting',error:'Error'};
+let uid=10,sel=null,filter='all',lastRefresh=new Date();
+const seed=()=>[
+ {id:1,t:'usb',name:'Pixel 8 Pro',model:'Google GP4BC',av:'14',serial:'1A2B3C4D5E6F',res:'1344×2992',status:'connected'},
+ {id:2,t:'usb',name:'Galaxy S23',model:'Samsung SM-S911B',av:'14',serial:'R5CW31ABXYZ',res:'1080×2340',status:'disconnected'},
+ {id:3,t:'usb',name:'Redmi Note 12',model:'Xiaomi 23021RAA2Y',av:'13',serial:'9f8e7d6c5b4a',res:'1080×2400',status:'disconnected'},
+ {id:4,t:'lan',name:'Living room tablet',model:'Lenovo Tab P11',av:'12',ip:'192.168.1.42',port:5555,res:'2000×1200',status:'connected'},
+ {id:5,t:'lan',name:'Test phone 02',model:'OnePlus 9',av:'13',ip:'192.168.1.57',port:5555,res:'1080×2400',status:'disconnected',fail:true},
+];
+let devs=seed();
+const hhmm=d=>d.toLocaleTimeString('en-GB');
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.k);toast.k=setTimeout(()=>t.classList.remove('show'),1800)}
+const vis=d=>filter==='all'||(filter==='connected'?d.status==='connected':d.status!=='connected');
+function empty(t,hidden){
+ const U=t.toUpperCase(),ei=`<div class="ei">${ic(t==='usb'?'usb':'net')}</div>`;
+ if(hidden)return `<div class="empty">${ei}<h3>${T('No matching devices')}</h3><p>${T('Change the filter to see the other {0} devices.',U)}</p></div>`;
+ return t==='usb'
+ ?`<div class="empty">${ei}<h3>${T('No USB devices found')}</h3><p>${T('Connect your phone with a USB cable and enable USB debugging in Developer options.')}</p><button class="btn sm" data-a="refresh">${ic('ref')}${T('Scan again')}</button></div>`
+ :`<div class="empty">${ei}<h3>${T('No LAN devices found')}</h3><p>${T('Make sure the phone and this PC are on the same Wi-Fi network, then add the phone by IP address.')}</p><button class="btn sm pri" data-a="add">${ic('plus')}${T('Add device')}</button></div>`;
 }
-function fit(){const st=$('#stage'),ph=$('#phone'),L=S.o==='l',b=9,ratio=L?19.5/9:9/19.5;
- let sh=Math.min(st.clientHeight-60-2*b,(st.clientWidth-60-2*b)/ratio);if(S.view==='fl')sh=L?150:360;
- const sw=sh*ratio;ph.style.width=sw+2*b+'px';ph.style.height=sh+2*b+'px';ph.style.setProperty('--r',(L?22:34)+'px')}
-new ResizeObserver(fit).observe($('#stage'));
-/* ---- kết nối ---- */
-function connect(){S.st='ing';render();clearTimeout(connect.t);
- connect.t=setTimeout(()=>{S.st=(S.conn==='LAN'&&Math.random()<.25)?'fail':'on';render();toast(S.st==='on'?'Đã kết nối qua '+S.conn+' (mô phỏng)':'Kết nối LAN thất bại')},1000)}
-function drop(){clearTimeout(connect.t);S.st='off';endArm=0;S.view='n';render();toast('Đã ngắt kết nối mô phỏng')}
-$('#bar').innerHTML=[['home','Trang chủ Android','Home'],['back','Quay lại','Back'],['rec','Đa nhiệm','Recents'],['|'],['mouse','Điều khiển chuột','Chuột',1],['kb','Bàn phím','Bàn phím',1],['map','Key Mapping','Key Mapping',2]].map(b=>b[0]==='|'?'<span class="vs"></span>':`<button class="cb" data-tip="${b[1]}" data-n="${b[2]}" data-t="${b[3]||0}">${svg(b[0])}</button>`).join('')+`<button class="cb end" id="bEnd">${svg('off')}<span></span></button>`;
-$$('.cb[data-n]').forEach(b=>b.onclick=()=>{const t=b.dataset.t;
- if(t==='2'){$('#km').classList.add('show')}
- else if(t==='1'){b.classList.toggle('on');toast(b.dataset.n+(b.classList.contains('on')?' · bật':' · tắt')+' (mô phỏng)')}
- else toast('Gửi lệnh '+b.dataset.n+' (mô phỏng)')});
-$('#kmX').onclick=()=>$('#km').classList.remove('show');
-$('#bEnd').onclick=()=>{
- if(S.st==='on'){if(endArm){clearTimeout(endArm);drop()}else{endArm=setTimeout(()=>{endArm=0;render()},3000);render()}}
- else connect()};
-$$('#seg button').forEach(b=>b.onclick=()=>{if(b.dataset.c===S.conn&&S.st==='on')return;S.conn=b.dataset.c;connect()});
-/* ---- điều khiển ---- */
-$('#qs').innerHTML=Object.entries(M).map(([k,m])=>`<button class="q" data-m="${k}">${m.n}</button>`).join('');
-$$('#qs .q').forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;render();toast('Chế độ: '+cur().n)});
-$$('#rot button').forEach(b=>b.onclick=()=>{const o=b.dataset.o;S.o=o==='r'?(S.o==='p'?'l':'p'):o;render();toast('Hướng: '+(S.o==='p'?'Dọc':'Ngang'))});
-function cust(){const c=M.custom;c.r=$('#cR').value;c.fps=+$('#cF').value;c.br=+$('#cB').value;c.c=$('#cC').value;
- const px=c.r.split('x').reduce((a,b)=>a*b)/2.5e6;c.lat=Math.round(12+c.br*.4+px*6+(c.c==='H.265'?4:0));c.t=+(31+c.fps/30+c.br/12+px).toFixed(1);render()}
-['#cR','#cF','#cB','#cC'].forEach(i=>$(i).oninput=cust);
-/* chế độ hiển thị loại trừ lẫn nhau: n | fl | full */
-const setView=v=>{if(S.st!=='on'&&v!=='n')return toast('Cần kết nối thiết bị trước');S.view=S.view===v?'n':v;render();toast({n:'Preview chuẩn',fl:'Cửa sổ nổi',full:'Toàn màn hình · Esc để thoát'}[S.view])};
-$('#bFloat').onclick=()=>setView('fl');$('#bFull').onclick=()=>setView('full');
-$('#bOv').onclick=()=>{S.ov=!S.ov;render()};
-addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#km').classList.contains('show'))$('#km').classList.remove('show');else if(S.view!=='n'){S.view='n';render()}}});
-$$('[data-act]').forEach(b=>b.onclick=()=>toast(b.dataset.act));
-/* ---- đồng hồ thật + jitter có quản lý vòng đời ---- */
-function tick(){const d=new Date(),t=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',hour12:false});$('#pClock').textContent=t;$('#sbT').textContent=t;$('#pDate').textContent=d.toLocaleDateString('vi-VN',{weekday:'long',day:'numeric',month:'long'})}
-function startSim(){stopSim();jit=setInterval(()=>{if(S.st!=='on'||anim)return;const m=cur();
- $('#mFps').textContent=m.fps-(Math.random()<.3?1:0);$('#mLat').textContent=m.lat+Math.round(Math.random()*4-2);$('#mBr').textContent=(m.br+Math.random()*1.2-.6).toFixed(1)},1600)}
-function stopSim(){clearInterval(jit)}
-document.addEventListener('visibilitychange',()=>document.hidden?stopSim():startSim());
-setInterval(tick,15000);tick();startSim();
-/* scale: không nhỏ hơn 0.6 để chữ còn đọc được */
-function scale(){const pad=window.__TAURI__?0:8,k=Math.max(.6,Math.min(1,(innerWidth-pad)/1024,(innerHeight-pad)/720));$('#win').style.transform=`scale(${k})`}
-addEventListener('resize',scale);scale();render();
+function devHTML(d){
+ const sub=d.t==='usb'?`${d.model} · Android ${d.av}`:`${d.ip}:${d.port} · Android ${d.av}`;
+ const on=d.status==='connected',bz=d.status==='connecting';
+ const kv=d.t==='usb'
+  ?[['Model',d.model],['Android',d.av],['Resolution',d.res],['Device ID',d.serial],['Connection',T('USB 3.0 cable')],['Status',lb(d.status)]]
+  :[['Model',d.model],['Android',d.av],['Resolution',d.res],['IP address',d.ip],['Port',d.port],['Status',lb(d.status)]];
+ return `<div class="dev${sel===d.id?' sel':''}${d.open?' open':''}" data-id="${d.id}" data-s="${d.status}">
+  <div class="row"><div class="av">${ic('ph')}</div>
+   <div class="inf"><div class="nm">${d.name}<span class="tag">${d.t.toUpperCase()}</span></div><div class="sub">${sub}</div></div>
+   <span class="badge"><i></i>${lb(d.status)}</span>
+   <div class="acts">
+    <button class="btn sm${on?'':' pri'}" data-a="${on?'disc':'conn'}" ${bz?'disabled':''}>${T(on?'Disconnect':(d.status==='error'?'Retry':'Connect'))}</button>
+    <button class="btn ico sm ghost" data-a="dmore" aria-label="${T('More options')}">${ic('more')}</button>
+    <button class="btn ico sm ghost" data-a="exp" aria-label="${T('Show details')}"><span class="chev" style="display:flex">${ic('dn')}</span></button>
+   </div></div>
+  <div class="more"><div><div class="kv">${kv.map(([k,v])=>`<div><small>${T(k)}</small><span>${v}</span></div>`).join('')}</div></div></div>
+ </div>`;
+}
+function render(){
+ ['usb','lan'].forEach(t=>{
+  const p=$(`.panel[data-t=${t}]`),all=devs.filter(d=>d.t===t),shown=all.filter(vis);
+  $('[data-cnt]',p).textContent=all.length;$(`.tab[data-t=${t}] .tc`).textContent=all.length;
+  const c=all.filter(d=>d.status==='connected').length,e=all.some(d=>d.status==='error');
+  $('[data-cs]',p).innerHTML=all.length?`<i class="dot" style="background:${e?'var(--err)':c?'var(--ac)':'var(--bd)'}"></i>${e?T('Needs attention'):T('{0} connected',c)}`:'';
+  const ca=$('[data-a=all]',p);if(ca)ca.disabled=!all.length||all.every(d=>d.status==='connected');
+  $('.list',p).innerHTML=shown.length?shown.map(devHTML).join(''):empty(t,all.length>0);
+ });
+ $('#sT').textContent=devs.length;$('#sC').textContent=devs.filter(d=>d.status==='connected').length;$('#sR').textContent=hhmm(lastRefresh);
+}
+function connect(d){
+ if(d.status==='connecting')return;d.status='connecting';render();
+ setTimeout(()=>{if(d.fail){d.status='error';d.fail=false;toast(T('Could not reach {0}. Check the network and retry.',d.name))}else{d.status='connected';toast(T('{0} connected',d.name))}render()},1100);
+}
+function refresh(){
+ const b=$$('[data-a=refresh] svg');b.forEach(s=>s.animate({transform:['rotate(0)','rotate(360deg)']},{duration:600}));
+ setTimeout(()=>{lastRefresh=new Date();render();toast(T('Device list refreshed'))},600);
+}
+function menu(btn,items){
+ const m=$('#menu');m.innerHTML=items.map(i=>i==='-'?'<hr>':`<button class="${i.d?'d':''}" data-m="${i.k}">${ic(i.i)}${i.l}</button>`).join('');
+ const r=btn.getBoundingClientRect();m.classList.add('show');
+ m.style.top=r.bottom+6+'px';m.style.left=Math.max(8,Math.min(innerWidth-m.offsetWidth-8,r.right-m.offsetWidth))+'px';
+ m._h=items;
+}
+const closeMenu=()=>$('#menu').classList.remove('show');
+const open=id=>$('#'+id).classList.add('show'),shut=()=>$$('.ov').forEach(o=>o.classList.remove('show'));
+document.addEventListener('click',e=>{
+ const m=e.target.closest('[data-m]');
+ if(m){const k=m.dataset.m;closeMenu();(menu.cb||(()=>{}))(k);return}
+ if(!e.target.closest('#menu'))closeMenu();
+ if(e.target.closest('[data-close]')||e.target.classList.contains('ov')){shut();return}
+ const f=e.target.closest('#flt button');
+ if(f){filter=f.dataset.f;$$('#flt button').forEach(b=>b.classList.toggle('on',b===f));render();return}
+ const tb=e.target.closest('.tab');if(tb){$$('.tab').forEach(b=>b.classList.toggle('on',b===tb));$$('.panel').forEach(q=>q.classList.toggle('act',q.dataset.t===tb.dataset.t));return}
+ const tg=e.target.closest('.tg');if(tg){tg.classList.toggle('on');return}
+ if(e.target.closest('#bSet')){open('ovSet');return}
+ if(e.target.closest('#bMore')){menu.cb=k=>{if(k==='r')refresh();if(k==='d'){devs.forEach(d=>d.status='disconnected');render();toast(T('All devices disconnected'))}if(k==='x'){devs=seed();sel=null;render();toast(T('Demo data restored'))}};
+  menu(e.target.closest('#bMore'),[{k:'r',i:'ref',l:T('Refresh all')},{k:'d',i:'off',l:T('Disconnect all')},'-',{k:'x',i:'ref',l:T('Restore demo data')}]);return}
+ const a=e.target.closest('[data-a]'),p=e.target.closest('.panel'),card=e.target.closest('.dev');
+ if(a){
+  const k=a.dataset.a,d=card&&devs.find(x=>x.id==card.dataset.id),t=p&&p.dataset.t;
+  if(k==='refresh')refresh();
+  else if(k==='add')open('ovAdd'),setTimeout(()=>$('#aIp').focus(),50);
+  else if(k==='all'){devs.filter(x=>x.t===t&&x.status!=='connected').forEach(connect)}
+  else if(k==='conn')connect(d);
+  else if(k==='disc'){d.status='disconnected';render();toast(T('{0} disconnected',d.name))}
+  else if(k==='exp'){d.open=!d.open;render()}
+  else if(k==='smore'){menu.cb=c=>{
+    if(c==='d'){devs.filter(x=>x.t===t).forEach(x=>x.status='disconnected');render()}
+    if(c==='c'){devs=devs.filter(x=>x.t!==t);render();toast(T('{0} list cleared',t.toUpperCase()))}
+   };menu(a,[{k:'d',i:'off',l:T('Disconnect all {0}',t.toUpperCase())},{k:'c',i:'trash',l:T('Clear list (show empty state)'),d:1}])}
+  else if(k==='dmore'){menu.cb=c=>{
+    if(c==='id'){toast(T('Copied to clipboard'))}
+    if(c==='rm'){devs=devs.filter(x=>x!==d);if(sel===d.id)sel=null;render();toast(T('{0} removed',d.name))}
+    if(c==='rf'){refresh()}
+   };menu(a,[{k:'rf',i:'ref',l:T('Refresh device')},{k:'id',i:'copy',l:T(d.t==='usb'?'Copy device ID':'Copy IP address')},...(d.t==='lan'?['-',{k:'rm',i:'trash',l:T('Remove device'),d:1}]:[])])}
+  return;
+ }
+ if(card){const id=+card.dataset.id;sel=id;const d=devs.find(x=>x.id===id);d.open=!d.open||sel!==id?true:d.open;render()}
+});
+$('#aOk').onclick=()=>{
+ const ip=$('#aIp'),port=$('#aPort'),ok=/^(\d{1,3}\.){3}\d{1,3}$/.test(ip.value.trim())&&ip.value.split('.').every(n=>+n<256);
+ ip.classList.toggle('bad',!ok);const pv=+port.value;port.classList.toggle('bad',!(pv>0&&pv<65536));
+ if(!ok||!(pv>0&&pv<65536))return toast(T('Enter a valid IP address and port'));
+ devs.push({id:uid++,t:'lan',name:$('#aName').value.trim()||'Android '+ip.value.split('.').pop(),model:T('Unknown model'),av:'—',ip:ip.value.trim(),port:pv,res:'—',status:'disconnected'});
+ ['aIp','aName'].forEach(i=>$('#'+i).value='');shut();render();toast(T('Device added'));
+};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){shut();closeMenu()}if(e.key==='Enter'&&$('#ovAdd').classList.contains('show'))$('#aOk').click()});
+const mq=matchMedia('(prefers-color-scheme: dark)'),orig=new Map(),AT={title:'oT','aria-label':'oA',placeholder:'oP'};
+const applyTheme=()=>{document.documentElement.dataset.theme=(theme==='light'||(theme==='system'&&!mq.matches))?'light':'dark'};
+mq.addEventListener('change',applyTheme);
+function applyStatic(){
+ const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;
+ while(n=w.nextNode()){
+  if(n.parentNode.closest('script,.list,#menu,#toast'))continue;
+  if(!orig.has(n))orig.set(n,n.nodeValue);
+  const o=orig.get(n),k=o.trim();if(k&&VI[k]!==undefined)n.nodeValue=o.replace(k,T(k));
+ }
+ $$('[title],[aria-label],[placeholder]').forEach(el=>{if(el.closest('.list,#menu'))return;
+  for(const a in AT){if(!el.hasAttribute(a))continue;if(el.dataset[AT[a]]===undefined)el.dataset[AT[a]]=el.getAttribute(a);el.setAttribute(a,T(el.dataset[AT[a]]))}});
+ document.documentElement.lang=lang;
+}
+const save=()=>{try{localStorage.setItem('lumir',JSON.stringify({theme,lang}))}catch(_){}};
+try{const v=JSON.parse(localStorage.getItem('lumir')||'{}');theme=v.theme||theme;lang=v.lang||lang}catch(_){}
+$('#sTheme').selectedIndex=['dark','light','system'].indexOf(theme);
+$('#sLang').selectedIndex=['en','vi'].indexOf(lang);
+$('#sTheme').onchange=e=>{theme=['dark','light','system'][e.target.selectedIndex];applyTheme();save()};
+$('#sLang').onchange=e=>{lang=['en','vi'][e.target.selectedIndex];applyStatic();render();save()};
+applyTheme();applyStatic();
+render();

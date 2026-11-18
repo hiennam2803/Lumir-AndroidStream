@@ -2,22 +2,45 @@
 (function(){
  const T=window.__TAURI__;
  if(!T||!T.window)return;
- document.documentElement.classList.add("tauri");
+ const root=document.documentElement;
+ root.classList.add("tauri");
 
  document.addEventListener("DOMContentLoaded",function(){
   const win=T.window.getCurrentWindow();
-  const fail=function(e){console.error("[LUMIR] window api:",e);if(typeof toast==="function")toast("Không thực hiện được thao tác cửa sổ")};
+  const fail=function(e){console.error("[LUMIR] window api:",e);if(typeof toast==="function")toast("Window action failed")};
+  const head=document.querySelector("header");
+  if(!head)return;
+  const skip=function(e){return e.target.closest("button,.seg,.sys,select,input")};
 
-  /* Titlebar tự vẽ (decorations:false) → kéo cửa sổ bằng vùng trống của #title */
-  document.getElementById("title").addEventListener("mousedown",function(e){
-   if(e.button!==0||e.target.closest("button,.conn"))return;
+  /* Header tự vẽ (decorations:false): kéo bằng vùng trống, nhấp đúp để phóng to/thu lại */
+  head.addEventListener("mousedown",function(e){
+   if(e.button!==0||e.detail>1||skip(e))return;
    win.startDragging().catch(fail);
   });
+  head.addEventListener("dblclick",function(e){
+   if(skip(e))return;
+   win.toggleMaximize().catch(fail);
+  });
 
-  /* Nút Thu nhỏ / Đóng: thay handler "không khả dụng trong bản web" bằng thao tác native */
-  const [btnMin,btnClose]=document.querySelectorAll("#title .wb");
-  btnMin.onclick=function(){win.minimize().catch(fail)};
-  btnClose.onclick=function(){win.close().catch(fail)};
+  /* Thiết kế mới không có nút cửa sổ: thêm Thu nhỏ / Phóng to / Đóng vào cuối .hr */
+  const hr=head.querySelector(".hr");
+  if(hr){
+   const mk=function(cls,title,path,fn){
+    const b=document.createElement("button");
+    b.className="btn ico ghost "+cls;b.title=title;b.setAttribute("aria-label",title);
+    b.innerHTML='<svg viewBox="0 0 24 24"><path d="'+path+'"/></svg>';
+    b.addEventListener("click",function(){fn().catch(fail)});
+    hr.appendChild(b);
+   };
+   const sep=document.createElement("span");sep.className="wsep";hr.appendChild(sep);
+   mk("wc-min","Minimize","M5 12h14",function(){return win.minimize()});
+   mk("wc-max","Maximize","M5 5h14v14H5z",function(){return win.toggleMaximize()});
+   mk("wc-x","Close","M6 6l12 12M18 6L6 18",function(){return win.close()});
+  }
+
+  /* Khi phóng to: bỏ bo góc để không lộ góc trong suốt */
+  const sync=function(){win.isMaximized().then(function(m){root.classList.toggle("max",m)}).catch(function(){})};
+  win.onResized(sync).catch(function(){});sync();
 
   /* Cảm giác app desktop: tắt menu chuột phải mặc định của WebView (F12 vẫn mở devtools khi dev) */
   document.addEventListener("contextmenu",function(e){e.preventDefault()});

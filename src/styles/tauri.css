@@ -1,4 +1,10 @@
-/* Chỉ áp dụng khi chạy trong Tauri (class .tauri trên <html> do tauri-bridge.js thêm).
-   Cửa sổ native đã là khung 1024x720 trong suốt, nên bỏ nền ngoài + bóng đổ của bản web. */
-html.tauri,html.tauri body{background:transparent}
-html.tauri #win{box-shadow:none}
+/* Chỉ áp dụng trong Tauri (class .tauri trên <html> do tauri-bridge.js thêm).
+   Bản web cố định body 1024x720 giữa nền; trong app, body lấp đầy cửa sổ native. */
+html.tauri{display:block;background:transparent;overflow:hidden}
+html.tauri body{width:100vw;height:100vh;border-radius:10px;overflow:hidden}
+html.tauri.max body{border-radius:0;border-color:transparent}
+/* Vùng kéo cửa sổ: thanh header */
+html.tauri header{-webkit-app-region:drag}
+/* Nút điều khiển cửa sổ do bridge thêm vào */
+html.tauri .wsep{width:1px;height:20px;background:var(--bd);margin:0 4px}
+html.tauri .btn.wc-x:hover{background:#d13b3b;border-color:#d13b3b;color:#fff}
