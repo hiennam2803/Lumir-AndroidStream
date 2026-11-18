@@ -1,0 +1,7 @@
+/* Sửa lỗi của bản HTML gốc, tách riêng để main.css giữ nguyên nguyên bản. */
+
+/* #phoneDock{display:flex} đè thuộc tính [hidden] nên nút "Ẩn màn hình điện thoại" không ẩn được */
+[hidden]{display:none!important}
+
+/* Khi dock bị ẩn, để vùng làm việc chiếm toàn bộ chiều ngang thay vì chừa cột 310px trống */
+#workspace:has(#phoneDock[hidden]){grid-template-columns:minmax(0,1fr)}
