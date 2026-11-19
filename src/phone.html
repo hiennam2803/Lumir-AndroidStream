@@ -22,12 +22,15 @@
   <!-- Vùng hiển thị điện thoại (khung tự co theo tỉ lệ màn hình thật) -->
   <div class="stage" id="stage">
     <div class="phone" id="phone">
-      <div class="ph-in">
+      <!-- Hình ảnh màn hình điện thoại (giải mã H.264 bằng WebCodecs, vẽ bởi phone.js) -->
+      <canvas class="vid" id="vid" width="540" height="1200"></canvas>
+      <!-- Khung chờ: ẩn khi đã có hình -->
+      <div class="ph-in" id="phIn">
         <svg class="ph-ico" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
         <div class="ph-nm" id="phNm">—</div>
         <div class="ph-res" id="phRes">—</div>
-        <div class="ph-st"><span data-t="Waiting for video stream">Waiting for video stream</span><b class="dots"><i></i><i></i><i></i></b></div>
-        <div class="ph-hint" data-t="Video streaming arrives in the next update.">Video streaming arrives in the next update.</div>
+        <div class="ph-st" id="phSt"><span id="phStT">Waiting for video stream</span><b class="dots"><i></i><i></i><i></i></b></div>
+        <button class="pill" id="bRetry" data-t="Retry" hidden>Retry</button>
       </div>
       <!-- Hiện khi thiết bị bị rút / ngắt kết nối -->
       <div class="ovl" id="ovl" hidden>

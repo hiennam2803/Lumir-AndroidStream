@@ -10,10 +10,12 @@ use std::thread;
 use std::time::Duration;
 
 use serde::Serialize;
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 use crate::adb::AdbError;
 use crate::device::{self, AdbStatus, AppState, DeviceView};
+use crate::stream::Streams;
 
 type Shared<'a> = State<'a, Arc<AppState>>;
 
@@ -186,8 +188,10 @@ pub async fn open_phone_window(app: AppHandle, state: Shared<'_>, serial: String
         })?;
 
     let (st2, label2) = (st.clone(), label.clone());
+    let streams = app.state::<Arc<Streams>>().inner().clone();
     win.on_window_event(move |e| {
         if let WindowEvent::Destroyed = e {
+            streams.stop(&label2); // đóng cửa sổ → dừng adb screenrecord
             st2.unregister_phone(&label2);
         }
     });
@@ -210,6 +214,48 @@ pub async fn phone_context(window: tauri::WebviewWindow, state: Shared<'_>) -> R
 pub async fn send_key(state: Shared<'_>, serial: String, key: String) -> Result<(), String> {
     let st = state.inner().clone();
     blocking(move || device::send_key(&st, &serial, &key)).await
+}
+
+/// Chạm / nhấn giữ / vuốt trên màn hình điện thoại. Toạ độ chuẩn hoá 0..1 theo khung hình đang hiển thị.
+#[tauri::command]
+pub async fn send_touch(
+    state: Shared<'_>,
+    serial: String,
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+    duration_ms: u32,
+    landscape: bool,
+) -> Result<(), String> {
+    let st = state.inner().clone();
+    blocking(move || device::send_touch(&st, &serial, (x1, y1), (x2, y2), duration_ms, landscape)).await
+}
+
+/// Bắt đầu truyền hình ảnh màn hình tới cửa sổ gọi lệnh. Dữ liệu đi qua `on_frame` (xem stream.rs).
+/// Gọi lại sẽ thay phiên cũ của cùng cửa sổ.
+#[tauri::command]
+pub async fn start_stream(
+    window: tauri::WebviewWindow,
+    state: Shared<'_>,
+    streams: State<'_, Arc<Streams>>,
+    serial: String,
+    on_frame: Channel<InvokeResponseBody>,
+) -> Result<(), String> {
+    let st = state.inner().clone();
+    if st.phone_serial(window.label()).as_deref() != Some(serial.as_str()) {
+        return Err("Unknown phone window".into());
+    }
+    if device::connected_view(&st, &serial).is_none() {
+        return Err(device::MSG_NOT_CONNECTED.into());
+    }
+    streams.start(window.label(), st, serial, on_frame);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_stream(window: tauri::WebviewWindow, streams: State<'_, Arc<Streams>>) {
+    streams.stop(window.label());
 }
 
 #[tauri::command]

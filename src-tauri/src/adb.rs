@@ -224,6 +224,17 @@ impl Adb {
         Ok(self.run(&["-s", serial, "get-state"], T_DEVICES)?.trim().to_string())
     }
 
+    /// Chạy `adb <args>` dài hạn (luồng video): trả tiến trình với stdout/stderr dạng pipe, không timeout.
+    pub fn spawn_piped(&self, args: &[&str]) -> Result<std::process::Child> {
+        self.command()
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| self.spawn_err(e))
+    }
+
     pub fn shell(&self, serial: &str, cmd: &str) -> Result<String> {
         self.run(&["-s", serial, "shell", cmd], T_SHELL)
     }

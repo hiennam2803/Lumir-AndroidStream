@@ -1,9 +1,11 @@
-//! LUMIR — Phase 1: kết nối USB thật (ADB, phát hiện thiết bị, máy trạng thái kết nối).
-//! Chưa có streaming / input; LAN chưa được hỗ trợ.
+//! LUMIR — Phase 2: kết nối USB thật (ADB) + truyền hình ảnh màn hình (screenrecord H.264 → WebCodecs).
+//! Điều khiển: phím điều hướng + chạm/vuốt bằng chuột; chưa có bàn phím; LAN chưa được hỗ trợ.
 
 mod adb;
 mod commands;
 mod device;
+mod h264;
+mod stream;
 
 use std::sync::Arc;
 
@@ -30,6 +32,7 @@ pub fn run() {
             let resource_dir = app.path().resource_dir().ok();
             let state = Arc::new(device::AppState::new(adb::Adb::locate(resource_dir.as_deref())));
             app.manage(state.clone());
+            app.manage(Arc::new(stream::Streams::default()));
             commands::spawn_poller(app.handle().clone(), state);
             Ok(())
         })
@@ -42,6 +45,9 @@ pub fn run() {
             commands::open_phone_window,
             commands::phone_context,
             commands::send_key,
+            commands::send_touch,
+            commands::start_stream,
+            commands::stop_stream,
             commands::set_always_on_top,
             commands::focus_main_window,
         ])

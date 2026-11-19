@@ -317,6 +317,49 @@ pub fn send_key(st: &AppState, serial: &str, key: &str) -> Result<(), String> {
         .map_err(map_adb_err)
 }
 
+/// "1080×2400" / "1080x2400" → (1080, 2400).
+fn parse_resolution(r: &str) -> Option<(u32, u32)> {
+    let (w, h) = r.split_once(['×', 'x'])?;
+    let (w, h) = (w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?);
+    (w > 1 && h > 1).then_some((w, h))
+}
+
+/// Dưới ngưỡng này (và gần như không di chuyển) thì coi là chạm nhanh; lâu hơn = nhấn giữ.
+const TAP_MAX_MS: u32 = 180;
+const SWIPE_MAX_MS: u32 = 5000;
+
+/// Chạm / nhấn giữ / vuốt. Toạ độ chuẩn hoá 0..1 so với khung hình đang hiển thị (frontend không cần biết
+/// độ phân giải thật). `landscape` = khung hình đang rộng hơn cao: dùng để hoán đổi W×H khi máy xoay ngang.
+/// Tạm thời qua `adb shell input tap|swipe`; sẽ chuyển sang kênh điều khiển riêng khi có.
+pub fn send_touch(
+    st: &AppState,
+    serial: &str,
+    from: (f64, f64),
+    to: (f64, f64),
+    duration_ms: u32,
+    landscape: bool,
+) -> Result<(), String> {
+    let view = connected_view(st, serial).ok_or_else(|| MSG_NOT_CONNECTED.to_string())?;
+    let (mut w, mut h) = view
+        .resolution
+        .as_deref()
+        .and_then(parse_resolution)
+        .ok_or_else(|| "Unknown screen size".to_string())?;
+    if landscape != (w > h) {
+        std::mem::swap(&mut w, &mut h);
+    }
+    let px = |v: f64, max: u32| (v.clamp(0.0, 1.0) * f64::from(max - 1)).round() as u32;
+    let (x1, y1, x2, y2) = (px(from.0, w), px(from.1, h), px(to.0, w), px(to.1, h));
+    let d = duration_ms.clamp(1, SWIPE_MAX_MS);
+    let cmd = if (x1, y1) == (x2, y2) && d < TAP_MAX_MS {
+        format!("input tap {x1} {y1}")
+    } else {
+        // Nhấn giữ = vuốt tại chỗ trong `d` ms.
+        format!("input swipe {x1} {y1} {x2} {y2} {d}")
+    };
+    st.adb.shell(serial, &cmd).map(|_| ()).map_err(map_adb_err)
+}
+
 /// Thông tin thiết bị nếu đang ở trạng thái Connected (không gọi adb).
 pub fn connected_view(st: &AppState, serial: &str) -> Option<DeviceView> {
     let reg = lock(&st.reg);
@@ -534,6 +577,18 @@ mod tests {
         let st = AppState::new(Adb::with_program("/definitely/not/adb"));
         assert_eq!(send_key(&st, "A", "back").unwrap_err(), MSG_NOT_CONNECTED);
         assert!(send_key(&st, "A", "nope").unwrap_err().starts_with("Unknown key"));
+    }
+
+    #[test]
+    fn touch_requires_connection() {
+        let st = AppState::new(Adb::with_program("/definitely/not/adb"));
+        assert_eq!(
+            send_touch(&st, "A", (0.5, 0.5), (0.5, 0.5), 50, false).unwrap_err(),
+            MSG_NOT_CONNECTED
+        );
+        assert_eq!(parse_resolution("1080×2400"), Some((1080, 2400)));
+        assert_eq!(parse_resolution("1080x2400"), Some((1080, 2400)));
+        assert_eq!(parse_resolution("rác"), None);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 /* Cửa sổ điện thoại nổi: khung màn hình + thanh điều hướng dọc bên phải.
    - Nút Back/Home/Recents/âm lượng/nguồn gửi phím thật tới điện thoại (adb input keyevent).
-   - Vùng hình đang là khung chờ; video stream sẽ gắn vào #phone ở giai đoạn sau.
+   - Chuột trên khung hình = cảm ứng (chạm / nhấn giữ / vuốt / cuộn), gửi qua send_touch.
    - Ngoài Tauri (mở bằng trình duyệt) chạy chế độ demo để xem bố cục. */
 (()=>{
 'use strict';
@@ -14,15 +14,16 @@ const VI={
  'Volume up':'Tăng âm lượng','Volume down':'Giảm âm lượng','Power / screen':'Nguồn / màn hình',
  'Always on top':'Luôn nổi trên cùng','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
  'Main window':'Cửa sổ chính','Minimize':'Thu nhỏ','Close':'Đóng',
- 'Waiting for video stream':'Đang chờ luồng video',
- 'Video streaming arrives in the next update.':'Truyền hình ảnh sẽ có ở bản cập nhật tiếp theo.',
+ 'Waiting for video stream':'Đang chờ luồng video','Retry':'Thử lại',
+ 'Video decoding is not supported on this system.':'Hệ thống này không hỗ trợ giải mã video.',
+ 'Video stream stopped':'Luồng video đã dừng','Unknown phone window':'Không xác định được cửa sổ điện thoại',
  'Device disconnected':'Thiết bị đã ngắt kết nối',
  'Plug the cable back in and connect from the main window.':'Cắm lại cáp rồi kết nối từ cửa sổ chính.',
  'Open main window':'Mở cửa sổ chính',
- 'Device is not connected.':'Thiết bị chưa được kết nối.',
+ 'Unknown screen size':'Không xác định được kích thước màn hình','Device is not connected.':'Thiết bị chưa được kết nối.',
  'ADB timed out':'ADB không phản hồi','ADB not found':'Không tìm thấy ADB'
 };
-let lang='en',theme='dark',pinned=true,serial='',dev=null,connected=false,ar=9/20;
+let lang='en',theme='dark',pinned=true,serial='',dev=null,connected=false,ar=9/20,live=false;
 const T=k=>lang==='vi'&&VI[k]||k;
 const mq=matchMedia('(prefers-color-scheme: dark)');
 
@@ -81,6 +82,7 @@ function applyLang(){
 function parseRes(r){const m=/(\d+)\s*[×x]\s*(\d+)/.exec(r||'');return m&&+m[1]>0&&+m[2]>0?+m[1]/+m[2]:null}
 function setDevice(d){
  if(d)dev={...(dev||{}),...d};
+ const was=connected;
  connected=!!d&&d.status==='connected';
  const name=(dev&&dev.name)||'—';
  $('#phNm').textContent=name;
@@ -90,8 +92,10 @@ function setDevice(d){
  $('#top').classList.toggle('off',!connected);
  $('#ovl').hidden=connected;
  $$('.rb[data-t=key]').forEach(b=>b.disabled=!connected);
- const a=parseRes(dev&&dev.resolution);if(a)ar=a;
+ const a=parseRes(dev&&dev.resolution);if(a&&!live)ar=a;
  fit();
+ if(connected&&!was)startStream();
+ else if(!connected&&was)stopStream(true,true);
 }
 /* Khung điện thoại vừa khít vùng stage, giữ đúng tỉ lệ màn hình */
 function fit(){
@@ -100,6 +104,89 @@ function fit(){
  let w=ah*ar,h=ah;if(w>aw){w=aw;h=aw/ar}
  w=Math.max(0,Math.floor(w));h=Math.max(0,Math.floor(h));
  const p=$('#phone');p.style.width=w+'px';p.style.height=h+'px';p.style.borderRadius=Math.round(Math.min(w,h)*.09)+'px';
+}
+
+
+/* ── Video: Rust gửi gói nhị phân [loại][dữ liệu H.264 Annex-B]; ở đây giải mã bằng WebCodecs rồi vẽ lên canvas ──
+   loại: 0 = khung P · 1 = khung IDR (có SPS/PPS) · 2 = lỗi (văn bản) · 3 = đang nối lại (screenrecord tự dừng sau 180 giây) */
+const K_DELTA=0,K_KEY=1,K_ERROR=2,K_RESTART=3;
+let ch=null,dec=null,codec='',needKey=true,ts=0,vctx=null,retryAt=0,retries=0;
+
+function setLive(on){live=on;$('#phone').classList.toggle('live',on)}
+function setStatus(msg,err){
+ $('#phStT').textContent=T(msg);$('#phSt').classList.toggle('err',!!err);$('#bRetry').hidden=!err;
+}
+function streamError(msg){
+ stopStream(true,false);
+ setStatus(String(msg||'Video stream stopped').slice(0,160),true);
+}
+
+/* Mã codec 'avc1.PPCCLL' lấy từ SPS (NAL loại 7) nằm ở đầu khung IDR */
+function spsCodec(u8){
+ const n=Math.min(u8.length-6,64);
+ for(let i=0;i<n;i++){
+  if(u8[i]||u8[i+1])continue;
+  const j=u8[i+2]===1?i+3:(u8[i+2]===0&&u8[i+3]===1?i+4:-1);
+  if(j>0&&(u8[j]&31)===7){const h=v=>v.toString(16).padStart(2,'0');return'avc1.'+h(u8[j+1])+h(u8[j+2])+h(u8[j+3])}
+ }
+ return null;
+}
+function closeDecoder(){if(dec&&dec.state!=='closed')try{dec.close()}catch(_){}dec=null;codec=''}
+function openDecoder(c){
+ closeDecoder();
+ dec=new VideoDecoder({output:drawFrame,error:e=>{console.warn('VideoDecoder',e);recover()}});
+ dec.configure({codec:c,optimizeForLatency:true});
+ codec=c;needKey=true;
+}
+function drawFrame(f){
+ const cv=$('#vid');
+ if(cv.width!==f.displayWidth||cv.height!==f.displayHeight){cv.width=f.displayWidth;cv.height=f.displayHeight;ar=cv.width/cv.height;fit()}
+ vctx.drawImage(f,0,0);f.close();
+ retries=0;
+ if(!live)setLive(true);
+}
+function onPacket(m){
+ const u=m instanceof ArrayBuffer?new Uint8Array(m):ArrayBuffer.isView(m)?new Uint8Array(m.buffer,m.byteOffset,m.byteLength):Uint8Array.from(m);
+ if(u.length<1)return;
+ const k=u[0],p=u.subarray(1);
+ if(k===K_ERROR){streamError(new TextDecoder().decode(p));return}
+ if(k===K_RESTART){needKey=true;return}            /* giữ nguyên hình cũ, chờ IDR của lượt mới */
+ if(k===K_KEY){const c=spsCodec(p);if(c&&c!==codec)openDecoder(c)}
+ if(!dec||dec.state==='closed'||(needKey&&k!==K_KEY))return;
+ needKey=false;
+ try{dec.decode(new EncodedVideoChunk({type:k===K_KEY?'key':'delta',timestamp:ts,data:p}));ts+=16667}
+ catch(e){console.warn('decode',e);recover()}
+}
+/* Giải mã lỗi (khung hỏng): khởi động lại luồng để có IDR mới, tối đa 4 lần liên tiếp */
+function recover(){
+ if(!connected)return;
+ const now=Date.now();
+ if(retries>=4||now-retryAt<1000){streamError('Video stream stopped');return}
+ retryAt=now;retries++;startStream();
+}
+async function startStream(){
+ if(!connected)return;
+ if(demo){demoFrame();return}
+ if(typeof VideoDecoder==='undefined'){setStatus('Video decoding is not supported on this system.',true);return}
+ stopStream(false,false);
+ vctx=vctx||$('#vid').getContext('2d',{alpha:false});
+ const c=new TA.core.Channel();ch=c;c.onmessage=m=>{if(ch===c)onPacket(m)};
+ setStatus('Waiting for video stream',false);
+ try{await call('start_stream',{serial,onFrame:c})}catch(e){if(ch===c)streamError(T(String(e)))}
+}
+/* remote: báo Rust dừng adb · keep: giữ khung hình cuối (khi mất kết nối, lớp phủ đã che) */
+function stopStream(remote,keep){
+ ch=null;closeDecoder();
+ if(!keep)setLive(false);
+ if(remote&&!demo)call('stop_stream').catch(()=>{});
+}
+/* Chế độ demo (mở bằng trình duyệt): vẽ hình mẫu để xem bố cục */
+function demoFrame(){
+ const cv=$('#vid');cv.width=540;cv.height=1200;ar=.45;
+ const g=cv.getContext('2d'),gr=g.createLinearGradient(0,0,540,1200);
+ gr.addColorStop(0,'#1d4e89');gr.addColorStop(1,'#35d6c2');g.fillStyle=gr;g.fillRect(0,0,540,1200);
+ g.fillStyle='rgba(255,255,255,.9)';g.font='600 44px Inter,sans-serif';g.textAlign='center';g.fillText('LUMIR demo',270,600);
+ setLive(true);fit();
 }
 
 /* ── Hành động ── */
@@ -117,6 +204,53 @@ function setPin(on,persist){
 }
 const toMain=()=>call('focus_main_window').catch(e=>toast(T(String(e))));
 
+/* ── Chuột → cảm ứng ──
+   Nhấn–nhả nhanh = chạm · giữ lâu = nhấn giữ · kéo = vuốt (thời lượng = thời gian kéo thật nên vuốt nhanh vẫn "fling")
+   Cuộn chuột = vuốt cuộn · chuột phải = Back · chuột giữa = Home.
+   adb chỉ nhận cử chỉ hoàn chỉnh nên lệnh được gửi khi nhả chuột. Toạ độ gửi đi đã chuẩn hoá 0..1. */
+const TAP_SLOP=8;                       /* px: di chuyển ít hơn mức này vẫn coi là đứng yên */
+let ptr=null,wheelBusy=false,marker=null;
+const norm=(e,r)=>[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];
+const landscape=()=>{const v=$('#vid');return v.width>v.height};
+function touch(a,b,ms){
+ if(!connected||!live)return Promise.resolve();
+ return call('send_touch',{serial,x1:a[0],y1:a[1],x2:b[0],y2:b[1],durationMs:Math.round(ms),landscape:landscape()}).catch(err=>toast(T(String(err))));
+}
+function showMarker(e,on){
+ const ph=$('#phone');
+ if(!marker){marker=document.createElement('i');marker.className='tp';ph.appendChild(marker)}
+ if(!on){marker.classList.remove('on');return}
+ const r=ph.getBoundingClientRect();
+ marker.style.left=(e.clientX-r.left)+'px';marker.style.top=(e.clientY-r.top)+'px';marker.classList.add('on');
+}
+const cv=$('#vid');
+cv.addEventListener('pointerdown',e=>{
+ if(!connected||!live||ptr)return;
+ if(e.button===2){press($('.rb[data-k=back]'));return}
+ if(e.button===1){e.preventDefault();press($('.rb[data-k=home]'));return}
+ if(e.button!==0)return;
+ cv.setPointerCapture(e.pointerId);
+ ptr={id:e.pointerId,x:e.clientX,y:e.clientY,t:performance.now(),a:norm(e,cv.getBoundingClientRect())};
+ showMarker(e,true);
+});
+cv.addEventListener('pointermove',e=>{if(ptr&&e.pointerId===ptr.id)showMarker(e,true)});
+cv.addEventListener('pointerup',e=>{
+ if(!ptr||e.pointerId!==ptr.id)return;
+ const p=ptr;ptr=null;showMarker(e,false);
+ const b=norm(e,cv.getBoundingClientRect()),ms=Math.max(1,performance.now()-p.t);
+ const still=Math.hypot(e.clientX-p.x,e.clientY-p.y)<TAP_SLOP;
+ touch(p.a,still?p.a:b,still?ms:Math.max(ms,60));
+});
+cv.addEventListener('pointercancel',e=>{if(ptr&&e.pointerId===ptr.id){ptr=null;showMarker(e,false)}});
+/* Cuộn chuột: vuốt ngón tay ngược chiều cuộn; mỗi lần chỉ một lệnh để adb không bị dồn ứ */
+cv.addEventListener('wheel',e=>{
+ e.preventDefault();
+ if(!connected||!live||wheelBusy||!e.deltaY)return;
+ const a=norm(e,cv.getBoundingClientRect()),dy=e.deltaY>0?-.3:.3;
+ const b=[a[0],Math.min(.95,Math.max(.05,a[1]+dy))];
+ wheelBusy=true;touch(a,b,220).finally(()=>{wheelBusy=false});
+},{passive:false});
+
 document.addEventListener('click',e=>{
  const b=e.target.closest('.rb');
  if(b){
@@ -126,7 +260,8 @@ document.addEventListener('click',e=>{
   else if(t==='main')toMain();
   else if(t==='map')toast(T('Key mapping (coming soon)'));
   return}
- if(e.target.closest('#bOvlMain'))toMain();
+ if(e.target.closest('#bRetry')){retries=0;startStream()}
+ else if(e.target.closest('#bOvlMain'))toMain();
  else if(e.target.closest('#bMin')&&win)win.minimize();
  else if(e.target.closest('#bClose')){win?win.close():window.close()}
 });
