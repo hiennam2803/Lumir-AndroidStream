@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LUMIR</title>
+<link rel="stylesheet" href="styles/fonts.css">
+<link rel="stylesheet" href="styles/phone.css">
+</head>
+<body>
+
+<!-- Thanh tiêu đề tự vẽ: kéo để di chuyển cửa sổ -->
+<div class="top" id="top">
+  <i class="dot" id="stDot"></i>
+  <span class="ttl" id="ttl">LUMIR</span>
+  <span class="sp"></span>
+  <button class="ib" id="bMin" data-l="Minimize"></button>
+  <button class="ib x" id="bClose" data-l="Close"></button>
+</div>
+
+<div class="main">
+  <!-- Vùng hiển thị điện thoại (khung tự co theo tỉ lệ màn hình thật) -->
+  <div class="stage" id="stage">
+    <div class="phone" id="phone">
+      <div class="ph-in">
+        <svg class="ph-ico" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
+        <div class="ph-nm" id="phNm">—</div>
+        <div class="ph-res" id="phRes">—</div>
+        <div class="ph-st"><span data-t="Waiting for video stream">Waiting for video stream</span><b class="dots"><i></i><i></i><i></i></b></div>
+        <div class="ph-hint" data-t="Video streaming arrives in the next update.">Video streaming arrives in the next update.</div>
+      </div>
+      <!-- Hiện khi thiết bị bị rút / ngắt kết nối -->
+      <div class="ovl" id="ovl" hidden>
+        <div class="ovl-b">
+          <div class="ovl-t" data-t="Device disconnected">Device disconnected</div>
+          <div class="ovl-s" data-t="Plug the cable back in and connect from the main window.">Plug the cable back in and connect from the main window.</div>
+          <button class="pill" id="bOvlMain" data-t="Open main window">Open main window</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thanh điều hướng dọc bên phải (dựng bằng phone.js) -->
+  <nav class="rail" id="rail" aria-label="Phone controls"></nav>
+</div>
+
+<div id="toast" role="status"></div>
+<script src="scripts/phone.js"></script>
+</body>
+</html>

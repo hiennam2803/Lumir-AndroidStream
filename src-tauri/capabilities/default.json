@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Quyền tối thiểu cho cửa sổ chính: kéo, thu nhỏ, phóng to, đóng (titlebar tự vẽ).",
+  "description": "Quyền tối thiểu cho cửa sổ chính và các cửa sổ điện thoại nổi (phone-*): kéo, thu nhỏ, phóng to, đóng (titlebar tự vẽ).",
   "windows": [
-    "main"
+    "main",
+    "phone-*"
   ],
   "permissions": [
     "core:default",

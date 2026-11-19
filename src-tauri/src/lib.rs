@@ -1,6 +1,11 @@
-//! LUMIR — giai đoạn UI prototype.
-//! Backend Rust chỉ dựng cửa sổ + WebView. Chưa có ADB / USB / LAN / streaming thật
-//! (toàn bộ tương tác là mô phỏng ở frontend), nên chưa cần command nào.
+//! LUMIR — Phase 1: kết nối USB thật (ADB, phát hiện thiết bị, máy trạng thái kết nối).
+//! Chưa có streaming / input; LAN chưa được hỗ trợ.
+
+mod adb;
+mod commands;
+mod device;
+
+use std::sync::Arc;
 
 use tauri::{LogicalSize, Manager};
 
@@ -21,8 +26,25 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             fit_to_monitor(app);
+
+            let resource_dir = app.path().resource_dir().ok();
+            let state = Arc::new(device::AppState::new(adb::Adb::locate(resource_dir.as_deref())));
+            app.manage(state.clone());
+            commands::spawn_poller(app.handle().clone(), state);
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::adb_status,
+            commands::list_devices,
+            commands::connect_device,
+            commands::disconnect_device,
+            commands::restart_adb,
+            commands::open_phone_window,
+            commands::phone_context,
+            commands::send_key,
+            commands::set_always_on_top,
+            commands::focus_main_window,
+        ])
         .run(tauri::generate_context!())
         .expect("không thể khởi chạy ứng dụng LUMIR");
 }

@@ -1,11 +1,7 @@
-```
-
-```
-
 # LUMIR — Desktop UI Prototype (Tauri 2 + Rust)
 
 Giao diện **LUMIR Android Device Manager**, bọc trong ứng dụng Tauri 2 cho Windows 10/11.
-Giai đoạn này chỉ là UI + mô phỏng: **không** có ADB, USB, LAN discovery, streaming hay injection thật.
+Giai đoạn hiện tại (Phase 1): **kết nối USB thật** qua ADB — phát hiện thiết bị, kiểm tra quyền USB debugging, đọc thông tin máy. **Chưa** có streaming, điều khiển (input) hay LAN.
 
 ## Yêu cầu (Windows)
 
@@ -17,6 +13,14 @@ Giai đoạn này chỉ là UI + mô phỏng: **không** có ADB, USB, LAN disco
 npm install
 npm run tauri dev
 ```
+
+## ADB
+
+Lumir tìm `adb` theo thứ tự: biến môi trường `LUMIR_ADB` → thư mục `adb/` cạnh app → (khi dev) `src-tauri/adb/` → `PATH`.
+
+Khi dev: tải [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) và chép `adb.exe`, `AdbWinApi.dll`, `AdbWinUsbApi.dll` vào `src-tauri/adb/` (hoặc để `adb` trong PATH).
+
+Khi đóng gói: thêm vào `bundle` trong `tauri.conf.json` dòng `"resources": ["adb/*"]` (sau khi thư mục `src-tauri/adb/` đã có file).
 
 ## Build bộ cài
 
@@ -39,6 +43,9 @@ src/                     frontend (không cần Vite, được đóng gói thẳ
   assets/fonts/          Inter Variable (latin, latin-ext, vietnamese)
 src-tauri/
   src/main.rs, src/lib.rs
+  src/adb.rs        chạy adb (timeout), phân tích đầu ra
+  src/device.rs     registry thiết bị + máy trạng thái kết nối (có unit test)
+  src/commands.rs   Tauri command, event, luồng quét thiết bị
   capabilities/default.json
   icons/  tauri.conf.json  Cargo.toml  build.rs
 app-icon.png             icon nguồn (npx tauri icon app-icon.png)

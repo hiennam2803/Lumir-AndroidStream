@@ -5,6 +5,7 @@
 <title>LUMIR — Android Device Manager</title>
 <link rel="stylesheet" href="styles/fonts.css">
 <link rel="stylesheet" href="styles/main.css">
+<link rel="stylesheet" href="styles/patches.css">
 <link rel="stylesheet" href="styles/tauri.css">
 <script src="scripts/tauri-bridge.js"></script>
 </head>
@@ -34,7 +35,7 @@
     <div class="seg" id="flt" title="Filter devices">
       <button class="on" data-f="all">All</button><button data-f="connected">Connected</button><button data-f="offline">Offline</button>
     </div>
-    <div class="sys"><i class="dot"></i>ADB service ready</div>
+    <div class="sys" id="adbSys"><i class="dot"></i><span id="adbTxt">ADB service ready</span></div>
     <button class="btn ico ghost" id="bSet" title="Settings" aria-label="Settings"><svg><use href="#i-set"/></svg></button>
     <button class="btn ico ghost" id="bMore" title="More options" aria-label="More options"><svg><use href="#i-more"/></svg></button>
   </div>

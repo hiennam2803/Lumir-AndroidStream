@@ -5,3 +5,20 @@
 
 /* Khi dock bị ẩn, để vùng làm việc chiếm toàn bộ chiều ngang thay vì chừa cột 310px trống */
 #workspace:has(#phoneDock[hidden]){grid-template-columns:minmax(0,1fr)}
+
+/* Trạng thái "Unauthorized" (chưa bấm Cho phép gỡ lỗi USB trên điện thoại) + dòng thông báo trong thẻ thiết bị */
+:root{--warn:#E3B341}
+[data-theme=light]{--warn:#B7791F}
+.dev[data-s=unauthorized]{--c:var(--warn)}
+[data-s=unauthorized] .badge{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.dev[data-s=unauthorized] .av{color:var(--warn)}
+.sub.msg{color:var(--c,var(--tx2));margin-top:2px}
+
+/* Header: chữ không được xuống dòng (tiếng Việt dài hơn tiếng Anh).
+   Phụ đề thương hiệu co lại bằng "…" khi hẹp và ẩn hẳn dưới 980px để nhường chỗ cho các nút. */
+header{gap:12px}
+.brand{min-width:0;flex:0 1 auto}
+.brand b,.seg button,.sys{white-space:nowrap}
+.brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hr{flex:none}
+@media (max-width:979px){.brand span{display:none}}
