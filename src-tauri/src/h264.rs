@@ -91,7 +91,8 @@ impl NalSplitter {
         std::mem::take(&mut self.desync)
     }
 
-    /// Có NAL đang chờ không (để biết có cần đặt hạn chờ im lặng hay không).
+    /// Có NAL đang chờ không (chỉ dùng trong test).
+    #[cfg(test)]
     pub fn has_pending(&self) -> bool {
         matches!(find_start(&self.buf, 0), Some((0, l)) if self.buf.len() > l + 1)
     }

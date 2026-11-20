@@ -28,9 +28,33 @@ pub const K_ERROR: u8 = 2;
 pub const K_RESTART: u8 = 3;
 pub const K_ROTATE: u8 = 4;
 
-/// Cạnh dài tối đa của video mã hoá. 1280 đủ nét cho cửa sổ điện thoại và encoder nào cũng nhận.
-const MAX_LONG_SIDE: u32 = 1280;
-const BIT_RATE: &str = "8000000";
+/// Chất lượng video do người dùng chọn (Mượt / Cân bằng / Sắc nét / Tuỳ chỉnh).
+/// screenrecord không có tuỳ chọn FPS (nó xuất khung theo mỗi lần màn hình thay đổi), nên FPS cao đạt được
+/// bằng cách giảm độ phân giải + bitrate để encoder và đường USB theo kịp.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Quality {
+    /// Cạnh dài tối đa của video mã hoá (điểm ảnh).
+    pub max_side: u32,
+    /// Bitrate (bit/giây).
+    pub bit_rate: u32,
+}
+
+impl Quality {
+    pub const MIN_SIDE: u32 = 320;
+    pub const MAX_SIDE: u32 = 2560;
+    pub const MIN_RATE: u32 = 500_000;
+    pub const MAX_RATE: u32 = 32_000_000;
+
+    /// Giá trị từ frontend (cạnh dài, Mbps); thiếu thì dùng mức Cân bằng. Luôn kẹp trong khoảng an toàn.
+    pub fn new(max_side: Option<u32>, mbps: Option<u32>) -> Quality {
+        Quality {
+            max_side: max_side.unwrap_or(1280).clamp(Self::MIN_SIDE, Self::MAX_SIDE),
+            bit_rate: mbps
+                .map_or(8_000_000, |m| m.saturating_mul(1_000_000))
+                .clamp(Self::MIN_RATE, Self::MAX_RATE),
+        }
+    }
+}
 /// Một khung chỉ biết là đã đủ khi start code của khung sau đến, nên khung nào cũng bị trễ một khung (hoặc cả
 /// màn hình tĩnh thì mãi không có khung sau). Để không phải chờ, im lặng quá chừng này là coi NAL đang dở đã đủ.
 /// Bắt đầu rất ngắn để độ trễ thấp nhất; nếu lỡ cắt giữa chừng một khung (h264.rs phát hiện được) thì mở lại
@@ -68,14 +92,22 @@ pub struct Streams {
 
 impl Streams {
     /// Bắt đầu stream cho cửa sổ `label`; phiên cũ của cửa sổ đó (nếu có) bị dừng trước.
-    pub fn start(&self, label: &str, st: Arc<AppState>, serial: String, ch: Channel<InvokeResponseBody>, link: Arc<Link>) {
+    pub fn start(
+        &self,
+        label: &str,
+        st: Arc<AppState>,
+        serial: String,
+        ch: Channel<InvokeResponseBody>,
+        link: Arc<Link>,
+        quality: Quality,
+    ) {
         let sess = Arc::new(Session { stop: AtomicBool::new(false), child: Mutex::new(None) });
         if let Some(old) = lock(&self.map).insert(label.to_string(), sess.clone()) {
             old.stop();
         }
         let _ = thread::Builder::new()
             .name(format!("lumir-stream-{label}"))
-            .spawn(move || run(st, serial, sess, ch, link));
+            .spawn(move || run(st, serial, sess, ch, link, quality));
     }
 
     pub fn stop(&self, label: &str) {
@@ -109,7 +141,7 @@ fn rotated(orient: &Orient, at_start: Option<u8>) -> bool {
     }
 }
 
-fn run(st: Arc<AppState>, serial: String, sess: Arc<Session>, ch: Channel<InvokeResponseBody>, link: Arc<Link>) {
+fn run(st: Arc<AppState>, serial: String, sess: Arc<Session>, ch: Channel<InvokeResponseBody>, link: Arc<Link>, quality: Quality) {
     let natural = device::connected_view(&st, &serial)
         .and_then(|v| v.resolution)
         .and_then(|r| device::parse_resolution(&r));
@@ -127,9 +159,9 @@ fn run(st: Arc<AppState>, serial: String, sess: Arc<Session>, ch: Channel<Invoke
         let rot = orient.get();
         let size = natural
             .map(|(w, h)| if rot.is_some_and(|r| r % 2 == 1) { (h, w) } else { (w, h) })
-            .and_then(|(w, h)| encode_size(w, h, MAX_LONG_SIDE));
+            .and_then(|(w, h)| encode_size(w, h, quality.max_side));
         let started = Instant::now();
-        let out = run_once(&st.adb, &serial, &sess, &ch, if use_size { size } else { None }, &orient, rot, idle);
+        let out = run_once(&st.adb, &serial, &sess, &ch, if use_size { size } else { None }, quality.bit_rate, &orient, rot, idle);
         if sess.stopped() {
             break;
         }
@@ -174,12 +206,14 @@ fn run_once(
     sess: &Arc<Session>,
     ch: &Channel<InvokeResponseBody>,
     size: Option<(u32, u32)>,
+    bit_rate: u32,
     orient: &Orient,
     start_rot: Option<u8>,
     idle: Duration,
 ) -> Outcome {
     let size_arg = size.map(|(w, h)| format!("{w}x{h}"));
-    let mut args: Vec<&str> = vec!["-s", serial, "exec-out", "screenrecord", "--output-format=h264", "--bit-rate", BIT_RATE];
+    let rate_arg = bit_rate.to_string();
+    let mut args: Vec<&str> = vec!["-s", serial, "exec-out", "screenrecord", "--output-format=h264", "--bit-rate", &rate_arg];
     if let Some(s) = &size_arg {
         args.push("--size");
         args.push(s);
@@ -278,4 +312,17 @@ fn run_once(
     }
     let err = lock(&err_buf).clone();
     Outcome { frames, err, reopen }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quality_is_clamped() {
+        assert_eq!(Quality::new(None, None), Quality { max_side: 1280, bit_rate: 8_000_000 });
+        assert_eq!(Quality::new(Some(10), Some(0)), Quality { max_side: 320, bit_rate: 500_000 });
+        assert_eq!(Quality::new(Some(99999), Some(u32::MAX)), Quality { max_side: 2560, bit_rate: 32_000_000 });
+        assert_eq!(Quality::new(Some(720), Some(4)), Quality { max_side: 720, bit_rate: 4_000_000 });
+    }
 }

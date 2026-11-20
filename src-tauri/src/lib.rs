@@ -3,6 +3,7 @@
 
 mod adb;
 mod commands;
+mod ctl;
 mod device;
 mod h264;
 mod input;
@@ -53,6 +54,7 @@ pub fn run() {
             commands::start_stream,
             commands::stop_stream,
             commands::set_always_on_top,
+            commands::set_fullscreen,
             commands::focus_main_window,
         ])
         .run(tauri::generate_context!())

@@ -24,6 +24,8 @@
     <div class="phone" id="phone">
       <!-- Hình ảnh màn hình điện thoại (giải mã H.264 bằng WebCodecs, vẽ bởi phone.js) -->
       <canvas class="vid" id="vid" width="540" height="1200"></canvas>
+      <!-- FPS · độ phân giải video · bitrate đo thực tế (bật/tắt trong bảng Chất lượng video) -->
+      <div class="stats" id="stats" hidden></div>
       <!-- Khung chờ: ẩn khi đã có hình -->
       <div class="ph-in" id="phIn">
         <svg class="ph-ico" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
@@ -45,6 +47,25 @@
 
   <!-- Thanh điều hướng dọc bên phải (dựng bằng phone.js) -->
   <nav class="rail" id="rail" aria-label="Phone controls"></nav>
+</div>
+
+<!-- Bảng chất lượng video: mở bằng nút đồng hồ trên thanh dọc -->
+<div class="qp" id="qp" role="dialog" aria-label="Video quality" hidden>
+  <div class="qp-h" data-t="Video quality">Video quality</div>
+  <div class="qp-seg" id="qpSeg">
+    <button data-m="smooth" data-t="Smooth">Smooth</button>
+    <button data-m="balanced" data-t="Balanced">Balanced</button>
+    <button data-m="sharp" data-t="Sharp">Sharp</button>
+    <button data-m="custom" data-t="Custom">Custom</button>
+  </div>
+  <div class="qp-d" id="qpD"></div>
+  <div class="qp-c" id="qpC" hidden>
+    <label><span class="qp-l"><span data-t="Resolution (long side)">Resolution (long side)</span><b id="qpResV"></b></span>
+      <input type="range" id="qpRes" min="320" max="2560" step="80"></label>
+    <label><span class="qp-l"><span data-t="Bitrate">Bitrate</span><b id="qpBrV"></b></span>
+      <input type="range" id="qpBr" min="1" max="32" step="1"></label>
+  </div>
+  <label class="qp-t"><input type="checkbox" id="qpStats"><span data-t="Show FPS & resolution">Show FPS &amp; resolution</span></label>
 </div>
 
 <div id="toast" role="status"></div>

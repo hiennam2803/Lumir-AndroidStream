@@ -1,8 +1,10 @@
 //! Điều khiển độ trễ thấp + theo dõi hướng xoay màn hình, mỗi thiết bị một `Link`.
 //!
-//! * Một phiên `adb exec-out sh` sống suốt thời gian cửa sổ mở: không phải khởi động lại adb cho từng thao tác.
+//! * Một phiên `adb shell sh` (stdin là pipe nên không cấp pty) sống suốt thời gian cửa sổ mở: không phải khởi động lại adb cho từng thao tác.
 //!   Phím điều hướng và cử chỉ dự phòng (`input tap|swipe`) chạy nền (`&`) qua phiên này.
-//! * Chạm thời gian thực: ghi thẳng sự kiện đa điểm (protocol B) vào `/dev/input/eventN` của màn hình cảm ứng
+//! * Chạm/phím thời gian thực ưu tiên số 1: kênh scrcpy-server (ctl.rs), một socket mở sẵn, tiêm bằng InputManager
+//!   như `input tap` nhưng mỗi sự kiện chỉ vài ms; hỗ trợ kéo/thả/nhấn giữ đúng nghĩa.
+//! * Dự phòng 1: ghi thẳng sự kiện đa điểm (protocol B) vào `/dev/input/eventN` của màn hình cảm ứng
 //!   (`printf '\ooo…' >&3`). Mỗi lần chạm/kéo chỉ tốn ~1–3 ms phía máy (so với ~100–300 ms của `input`).
 //!   Nếu máy không cho ghi (SELinux/hãng), tự động quay về `input tap|swipe`.
 //! * Một tiến trình nhẹ đọc hướng xoay (0–3) để stream đổi kích thước video và để quy đổi toạ độ chạm.
@@ -18,6 +20,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::adb::Adb;
+use crate::ctl::{Act, Ctl};
 use crate::device::AppState;
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -254,6 +257,18 @@ fn up_bytes(p: &PadInfo, u: f64, v: f64) -> Vec<u8> {
 
 // ───────────────────────── Link ─────────────────────────
 
+/// (x, y) chuẩn hoá trên khung hình hiển thị → điểm ảnh theo hướng hiển thị hiện tại + kích thước màn hình đó.
+/// `res` là độ phân giải tự nhiên (wm size); máy đang nằm ngang thì đảo W×H.
+pub fn display_px(res: Option<(u32, u32)>, rot: u8, x: f64, y: f64) -> Option<(i32, i32, u16, u16)> {
+    let (mut w, mut h) = res?;
+    if (rot % 2 == 1) != (w > h) {
+        std::mem::swap(&mut w, &mut h);
+    }
+    let (cw, ch) = (u16::try_from(w).ok()?, u16::try_from(h).ok()?);
+    let px = |t: f64, max: u32| (t.clamp(0.0, 1.0) * f64::from(max.saturating_sub(1))).round() as i32;
+    Some((px(x, w), px(y, h), cw, ch))
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Phase {
     Down,
@@ -280,6 +295,7 @@ enum PadState {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
+    Ctl,
     Evdev,
     Input,
 }
@@ -300,9 +316,12 @@ pub struct Link {
     orient: Arc<Orient>,
     sh: Mutex<Option<Sh>>,
     pad: Mutex<PadState>,
+    ctl: Mutex<Option<Arc<Ctl>>>,
     gesture: Mutex<Option<Gesture>>,
     tid: AtomicU32,
     closed: AtomicBool,
+    born: Instant,
+    ctl_failed: AtomicBool,
 }
 
 impl Link {
@@ -312,10 +331,25 @@ impl Link {
             orient: Orient::spawn(adb, serial),
             sh: Mutex::new(None),
             pad: Mutex::new(PadState::Probing),
+            ctl: Mutex::new(None),
             gesture: Mutex::new(None),
             tid: AtomicU32::new(1),
             closed: AtomicBool::new(false),
+            born: Instant::now(),
+            ctl_failed: AtomicBool::new(false),
         })
+    }
+
+    /// Còn dùng được không? (đang khởi động, hoặc kênh scrcpy còn sống). Đổi chất lượng video gọi lại `start_stream`
+    /// nên không được dựng lại kênh điều khiển mỗi lần; chỉ dựng lại khi nó đã chết hoặc thất bại.
+    fn usable(&self) -> bool {
+        if self.closed.load(Ordering::SeqCst) {
+            return false;
+        }
+        match &*lock(&self.ctl) {
+            Some(c) => c.is_alive(),
+            None => !self.ctl_failed.load(Ordering::SeqCst) && self.born.elapsed() < Duration::from_secs(20),
+        }
     }
 
     pub fn orient(&self) -> Arc<Orient> {
@@ -324,6 +358,25 @@ impl Link {
 
     /// Nền: mở phiên shell, dò màn hình cảm ứng, thử ghi một sự kiện SYN vô hại để biết có được phép không.
     fn start(self: &Arc<Self>, st: Arc<AppState>) {
+        // Kênh điều khiển scrcpy-server (mất ~1–2 giây để lên; trong lúc đó dùng đường dự phòng).
+        let (me, st2) = (self.clone(), st.clone());
+        let _ = thread::Builder::new().name("lumir-ctl-start".into()).spawn(move || {
+            match Ctl::start(&st2.adb, &me.serial) {
+                Ok(c) => {
+                    *lock(&me.ctl) = Some(c);
+                    if me.closed.load(Ordering::SeqCst) {
+                        if let Some(c) = lock(&me.ctl).take() {
+                            c.shutdown(); // cửa sổ đã đóng trong lúc đang khởi động
+                        }
+                    }
+                }
+                Err(e) => {
+                    me.ctl_failed.store(true, Ordering::SeqCst);
+                    eprintln!("[lumir] scrcpy control unavailable, falling back: {e}");
+                }
+            }
+        });
+
         let me = self.clone();
         let _ = thread::Builder::new().name("lumir-input-probe".into()).spawn(move || {
             let _ = me.exec(&st.adb, ":"); // mở sẵn shell
@@ -347,14 +400,18 @@ impl Link {
                     let _ = me.exec(&st.adb, &format!("exec 3>{}", p.dev));
                     *lock(&me.pad) = PadState::Ready(p);
                 }
-                None => *lock(&me.pad) = PadState::Unsupported,
+                None => {
+                    eprintln!("[lumir] evdev touch not usable on this device (using input fallback)");
+                    *lock(&me.pad) = PadState::Unsupported;
+                }
             }
         });
     }
 
+    /// Lưu ý: PHẢI là `shell`, không phải `exec-out` — `exec-out` không chuyển tiếp stdin nên `sh` đọc thấy EOF và thoát ngay.
     fn spawn_sh(&self, adb: &Adb) -> Result<Sh, String> {
         let mut child = adb
-            .spawn_session(&["-s", &self.serial, "exec-out", "sh"], false)
+            .spawn_session(&["-s", &self.serial, "shell", "sh"], false)
             .map_err(|e| e.to_string())?;
         let mut stdin = child.stdin.take().ok_or_else(|| "adb shell: no stdin".to_string())?;
         if let PadState::Ready(p) = &*lock(&self.pad) {
@@ -397,6 +454,25 @@ impl Link {
         }
     }
 
+    fn ctl_ready(&self) -> Option<Arc<Ctl>> {
+        lock(&self.ctl).as_ref().filter(|c| c.is_alive()).cloned()
+    }
+
+    /// Có đường thời gian thực (kênh scrcpy hoặc evdev) không?
+    fn realtime(&self) -> bool {
+        self.ctl_ready().is_some() || self.pad_ready().is_some()
+    }
+
+    /// Phím điều hướng: kênh scrcpy nếu có, không thì `input keyevent` qua phiên shell.
+    pub fn key(&self, adb: &Adb, code: u32) -> Result<(), String> {
+        if let Some(c) = self.ctl_ready() {
+            if c.key(code as i32) {
+                return Ok(());
+            }
+        }
+        self.exec_bg(adb, &format!("input keyevent {code}"))
+    }
+
     fn rotation(&self, hint_landscape: bool) -> u8 {
         self.orient.get().unwrap_or(if hint_landscape { 1 } else { 0 })
     }
@@ -415,31 +491,61 @@ impl Link {
         let (x, y) = (if x.is_finite() { x.clamp(0.0, 1.0) } else { 0.0 }, if y.is_finite() { y.clamp(0.0, 1.0) } else { 0.0 });
         let rot = self.rotation(hint_landscape);
         let (u, v) = to_natural(rot, x, y);
+        let point = |x: f64, y: f64| display_px(res, rot, x, y);
         match phase {
             Phase::Down => {
-                let pad = self.pad_ready();
-                *lock(&self.gesture) = Some(Gesture {
-                    mode: if pad.is_some() { Mode::Evdev } else { Mode::Input },
-                    start: (x, y),
-                    t0: Instant::now(),
-                });
-                if let Some(p) = pad {
-                    let id = (self.tid.fetch_add(1, Ordering::SeqCst) % 60000) as i32 + 1;
-                    self.exec(adb, &write_cmd(&down_bytes(&p, u, v, id)))?;
+                let (ctl, pad) = (self.ctl_ready(), self.pad_ready());
+                let mode = if ctl.is_some() {
+                    Mode::Ctl
+                } else if pad.is_some() {
+                    Mode::Evdev
+                } else {
+                    Mode::Input
+                };
+                *lock(&self.gesture) = Some(Gesture { mode, start: (x, y), t0: Instant::now() });
+                match (mode, ctl, pad) {
+                    (Mode::Ctl, Some(c), _) => {
+                        if let Some((px, py, w, h)) = point(x, y) {
+                            c.touch(Act::Down, px, py, w, h);
+                        }
+                        Ok(())
+                    }
+                    (Mode::Evdev, _, Some(p)) => {
+                        let id = (self.tid.fetch_add(1, Ordering::SeqCst) % 60000) as i32 + 1;
+                        self.exec(adb, &write_cmd(&down_bytes(&p, u, v, id)))
+                    }
+                    _ => Ok(()),
                 }
-                Ok(())
             }
             Phase::Move => {
                 let Some(mode) = lock(&self.gesture).as_ref().map(|g| g.mode) else { return Ok(()) };
-                match (mode, self.pad_ready()) {
-                    (Mode::Evdev, Some(p)) => self.exec(adb, &write_cmd(&move_bytes(&p, u, v))),
-                    _ => Ok(()), // đường dự phòng chỉ cần điểm đầu và điểm cuối
+                match mode {
+                    Mode::Ctl => {
+                        if let (Some(c), Some((px, py, w, h))) = (self.ctl_ready(), point(x, y)) {
+                            c.touch(Act::Move, px, py, w, h);
+                        }
+                        Ok(())
+                    }
+                    Mode::Evdev => match self.pad_ready() {
+                        Some(p) => self.exec(adb, &write_cmd(&move_bytes(&p, u, v))),
+                        None => Ok(()),
+                    },
+                    Mode::Input => Ok(()), // đường dự phòng chỉ cần điểm đầu và điểm cuối
                 }
             }
             Phase::Up => {
                 let Some(g) = lock(&self.gesture).take() else { return Ok(()) };
-                match (g.mode, self.pad_ready()) {
-                    (Mode::Evdev, Some(p)) => self.exec(adb, &write_cmd(&up_bytes(&p, u, v))),
+                match g.mode {
+                    Mode::Ctl => {
+                        if let (Some(c), Some((px, py, w, h))) = (self.ctl_ready(), point(x, y)) {
+                            c.touch(Act::Up, px, py, w, h);
+                        }
+                        Ok(())
+                    }
+                    Mode::Evdev if self.pad_ready().is_some() => {
+                        let p = self.pad_ready().expect("vừa kiểm tra");
+                        self.exec(adb, &write_cmd(&up_bytes(&p, u, v)))
+                    }
                     _ => {
                         let ms = g.t0.elapsed().as_millis().clamp(1, SWIPE_MAX_MS);
                         self.input_gesture(adb, g.start, (x, y), ms, res, rot)
@@ -484,7 +590,7 @@ impl Link {
         hint_landscape: bool,
     ) -> Result<(), String> {
         let y2 = (y + dy).clamp(0.03, 0.97);
-        if self.pad_ready().is_some() {
+        if self.realtime() {
             const STEPS: u32 = 10;
             self.touch(adb, Phase::Down, x, y, res, hint_landscape)?;
             for i in 1..=STEPS {
@@ -503,6 +609,9 @@ impl Link {
     fn shutdown(&self) {
         self.closed.store(true, Ordering::SeqCst);
         self.orient.stop();
+        if let Some(c) = lock(&self.ctl).take() {
+            c.shutdown();
+        }
         if let Some(mut s) = lock(&self.sh).take() {
             drop(s.stdin);
             let _ = s.child.kill();
@@ -519,8 +628,11 @@ pub struct Inputs {
 }
 
 impl Inputs {
-    /// Tạo `Link` mới cho thiết bị (thay cái cũ nếu có: adb có thể đã bị rút/cắm lại).
+    /// Lấy `Link` đang dùng được của thiết bị, không thì tạo mới (thay cái cũ: adb có thể đã bị rút/cắm lại).
     pub fn start(&self, st: &Arc<AppState>, serial: &str) -> Arc<Link> {
+        if let Some(l) = self.get(serial).filter(|l| l.usable()) {
+            return l;
+        }
         let link = Link::new(&st.adb, serial);
         let old = lock(&self.map).insert(serial.to_string(), link.clone());
         if let Some(o) = old {
@@ -589,6 +701,14 @@ arm64-v8a
             let (u, v) = to_natural(r, 0.3, 0.6);
             assert!((0.0..=1.0).contains(&u) && (0.0..=1.0).contains(&v));
         }
+    }
+
+    #[test]
+    fn display_pixels() {
+        assert_eq!(display_px(Some((1080, 2400)), 0, 0.0, 1.0), Some((0, 2399, 1080, 2400)));
+        // Máy nằm ngang: màn hình là 2400×1080.
+        assert_eq!(display_px(Some((1080, 2400)), 1, 1.0, 0.5), Some((2399, 540, 2400, 1080)));
+        assert_eq!(display_px(None, 0, 0.5, 0.5), None);
     }
 
     #[test]

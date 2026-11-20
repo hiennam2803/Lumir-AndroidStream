@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, W
 use crate::adb::AdbError;
 use crate::device::{self, AdbStatus, AppState, DeviceView};
 use crate::input::{Inputs, Phase};
-use crate::stream::Streams;
+use crate::stream::{Quality, Streams};
 
 type Shared<'a> = State<'a, Arc<AppState>>;
 
@@ -183,7 +183,7 @@ pub async fn open_phone_window(app: AppHandle, state: Shared<'_>, serial: String
     let win = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("phone.html".into()))
         .title(format!("LUMIR — {}", view.name))
         .inner_size(w, h)
-        .min_inner_size(300.0, 440.0)
+        .min_inner_size(300.0, 470.0)
         .decorations(false)
         .transparent(true)
         .always_on_top(true)
@@ -230,7 +230,8 @@ pub async fn send_key(state: Shared<'_>, inputs: State<'_, Arc<Inputs>>, serial:
             if device::connected_view(&st, &serial).is_none() {
                 return Err(device::MSG_NOT_CONNECTED.to_string());
             }
-            link.exec_bg(&st.adb, &format!("input keyevent {code}"))
+            // Kênh scrcpy → phiên shell → `adb shell` trực tiếp: phím không bao giờ "mất".
+            link.key(&st.adb, code).or_else(|_| device::send_key(&st, &serial, &key))
         }
         _ => device::send_key(&st, &serial, &key),
     })
@@ -316,6 +317,8 @@ pub async fn start_stream(
     inputs: State<'_, Arc<Inputs>>,
     serial: String,
     on_frame: Channel<InvokeResponseBody>,
+    max_side: Option<u32>,
+    bit_rate_mbps: Option<u32>,
 ) -> Result<(), String> {
     let st = state.inner().clone();
     if st.phone_serial(window.label()).as_deref() != Some(serial.as_str()) {
@@ -325,13 +328,18 @@ pub async fn start_stream(
         return Err(device::MSG_NOT_CONNECTED.into());
     }
     let link = inputs.start(&st, &serial); // phiên shell + theo dõi xoay + dò màn hình cảm ứng (chạy nền)
-    streams.start(window.label(), st, serial, on_frame, link);
+    streams.start(window.label(), st, serial, on_frame, link, Quality::new(max_side, bit_rate_mbps));
     Ok(())
 }
 
 #[tauri::command]
 pub fn stop_stream(window: tauri::WebviewWindow, streams: State<'_, Arc<Streams>>) {
     streams.stop(window.label());
+}
+
+#[tauri::command]
+pub fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Result<(), String> {
+    window.set_fullscreen(on).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
