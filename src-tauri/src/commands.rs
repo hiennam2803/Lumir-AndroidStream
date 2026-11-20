@@ -11,10 +11,11 @@ use std::time::Duration;
 
 use serde::Serialize;
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 use crate::adb::AdbError;
 use crate::device::{self, AdbStatus, AppState, DeviceView};
+use crate::input::{Inputs, Phase};
 use crate::stream::Streams;
 
 type Shared<'a> = State<'a, Arc<AppState>>;
@@ -122,9 +123,16 @@ pub async fn connect_device(app: AppHandle, state: Shared<'_>, serial: String) -
 }
 
 #[tauri::command]
-pub async fn disconnect_device(app: AppHandle, state: Shared<'_>, serial: String) -> Result<(), String> {
+pub async fn disconnect_device(
+    app: AppHandle,
+    state: Shared<'_>,
+    inputs: State<'_, Arc<Inputs>>,
+    serial: String,
+) -> Result<(), String> {
     let st = state.inner().clone();
+    let inputs = inputs.inner().clone();
     blocking(move || {
+        inputs.stop(&serial);
         device::disconnect(&st, &serial);
         let _ = publish(&app, &st);
         Ok(())
@@ -187,11 +195,13 @@ pub async fn open_phone_window(app: AppHandle, state: Shared<'_>, serial: String
             e.to_string()
         })?;
 
-    let (st2, label2) = (st.clone(), label.clone());
+    let (st2, label2, serial2) = (st.clone(), label.clone(), serial.clone());
     let streams = app.state::<Arc<Streams>>().inner().clone();
+    let inputs = app.state::<Arc<Inputs>>().inner().clone();
     win.on_window_event(move |e| {
         if let WindowEvent::Destroyed = e {
             streams.stop(&label2); // đóng cửa sổ → dừng adb screenrecord
+            inputs.stop(&serial2); // và phiên shell / theo dõi xoay của thiết bị
             st2.unregister_phone(&label2);
         }
     });
@@ -210,26 +220,90 @@ pub async fn phone_context(window: tauri::WebviewWindow, state: Shared<'_>) -> R
 }
 
 /// Gửi phím điều hướng / phần cứng (back, home, recents, volume_up, volume_down, power).
+/// Có phiên shell sẵn thì đi qua đó (không tốn thời gian khởi động adb), không thì chạy `adb shell` như trước.
 #[tauri::command]
-pub async fn send_key(state: Shared<'_>, serial: String, key: String) -> Result<(), String> {
+pub async fn send_key(state: Shared<'_>, inputs: State<'_, Arc<Inputs>>, serial: String, key: String) -> Result<(), String> {
     let st = state.inner().clone();
-    blocking(move || device::send_key(&st, &serial, &key)).await
+    let inputs = inputs.inner().clone();
+    blocking(move || match (device::key_code(&key), inputs.get(&serial)) {
+        (Some(code), Some(link)) => {
+            if device::connected_view(&st, &serial).is_none() {
+                return Err(device::MSG_NOT_CONNECTED.to_string());
+            }
+            link.exec_bg(&st.adb, &format!("input keyevent {code}"))
+        }
+        _ => device::send_key(&st, &serial, &key),
+    })
+    .await
 }
 
-/// Chạm / nhấn giữ / vuốt trên màn hình điện thoại. Toạ độ chuẩn hoá 0..1 theo khung hình đang hiển thị.
+/// Chạm thời gian thực: phase = down | move | up, (x, y) chuẩn hoá 0..1 trên khung hình đang hiển thị.
+/// Frontend gọi tuần tự (đợi lệnh trước xong mới gửi lệnh sau) nên thứ tự down → move → up được giữ nguyên.
 #[tauri::command]
-pub async fn send_touch(
+pub async fn touch_event(
     state: Shared<'_>,
+    inputs: State<'_, Arc<Inputs>>,
     serial: String,
-    x1: f64,
-    y1: f64,
-    x2: f64,
-    y2: f64,
-    duration_ms: u32,
+    phase: String,
+    x: f64,
+    y: f64,
     landscape: bool,
 ) -> Result<(), String> {
     let st = state.inner().clone();
-    blocking(move || device::send_touch(&st, &serial, (x1, y1), (x2, y2), duration_ms, landscape)).await
+    let phase = Phase::parse(&phase).ok_or_else(|| "Unknown touch phase".to_string())?;
+    let view = device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    let link = inputs.get(&serial).unwrap_or_else(|| inputs.start(&st, &serial));
+    let res = view.resolution.as_deref().and_then(device::parse_resolution);
+    blocking(move || link.touch(&st.adb, phase, x, y, res, landscape)).await
+}
+
+/// Cuộn chuột: vuốt từ (x, y) một đoạn `dy` (chuẩn hoá; âm = ngón tay đi lên = nội dung cuộn xuống).
+#[tauri::command]
+pub async fn touch_scroll(
+    state: Shared<'_>,
+    inputs: State<'_, Arc<Inputs>>,
+    serial: String,
+    x: f64,
+    y: f64,
+    dy: f64,
+    landscape: bool,
+) -> Result<(), String> {
+    let st = state.inner().clone();
+    let view = device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    let link = inputs.get(&serial).unwrap_or_else(|| inputs.start(&st, &serial));
+    let res = view.resolution.as_deref().and_then(device::parse_resolution);
+    blocking(move || link.scroll(&st.adb, x, y, dy, res, landscape)).await
+}
+
+/// Máy xoay ngang/dọc → đổi cửa sổ điện thoại sang tỉ lệ tương ứng, giữ nguyên tâm cửa sổ.
+#[tauri::command]
+pub async fn fit_phone_window(window: tauri::WebviewWindow, state: Shared<'_>, landscape: bool) -> Result<(), String> {
+    let st = state.inner().clone();
+    let serial = st.phone_serial(window.label()).ok_or_else(|| "Unknown phone window".to_string())?;
+    let view = device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return Ok(()); // người dùng đã tự phóng to: để yên
+    }
+    let (w, h) = view
+        .resolution
+        .as_deref()
+        .and_then(device::parse_resolution)
+        .ok_or_else(|| "Unknown screen size".to_string())?;
+    let (long, short) = (w.max(h), w.min(h));
+    let res = if landscape { format!("{long}x{short}") } else { format!("{short}x{long}") };
+    let (ww, wh) = device::phone_window_size(Some(&res));
+
+    let pos = window.outer_position().map_err(|e| e.to_string())?;
+    let old = window.outer_size().map_err(|e| e.to_string())?;
+    let (cx, cy) = (f64::from(pos.x) + f64::from(old.width) / 2.0, f64::from(pos.y) + f64::from(old.height) / 2.0);
+    window.set_size(LogicalSize::new(ww, wh)).map_err(|e| e.to_string())?;
+    let new = window.outer_size().map_err(|e| e.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(
+            (cx - f64::from(new.width) / 2.0).round() as i32,
+            (cy - f64::from(new.height) / 2.0).round() as i32,
+        ))
+        .map_err(|e| e.to_string())
 }
 
 /// Bắt đầu truyền hình ảnh màn hình tới cửa sổ gọi lệnh. Dữ liệu đi qua `on_frame` (xem stream.rs).
@@ -239,6 +313,7 @@ pub async fn start_stream(
     window: tauri::WebviewWindow,
     state: Shared<'_>,
     streams: State<'_, Arc<Streams>>,
+    inputs: State<'_, Arc<Inputs>>,
     serial: String,
     on_frame: Channel<InvokeResponseBody>,
 ) -> Result<(), String> {
@@ -249,7 +324,8 @@ pub async fn start_stream(
     if device::connected_view(&st, &serial).is_none() {
         return Err(device::MSG_NOT_CONNECTED.into());
     }
-    streams.start(window.label(), st, serial, on_frame);
+    let link = inputs.start(&st, &serial); // phiên shell + theo dõi xoay + dò màn hình cảm ứng (chạy nền)
+    streams.start(window.label(), st, serial, on_frame, link);
     Ok(())
 }
 

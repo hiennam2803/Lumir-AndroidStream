@@ -15,6 +15,18 @@ pub struct Frame {
 #[derive(Default)]
 pub struct NalSplitter {
     buf: Vec<u8>,
+    /// Vừa `flush` sớm một NAL (chưa thấy start code kế tiếp).
+    after_flush: bool,
+    /// Sau `flush` sớm, dữ liệu đến tiếp lại KHÔNG bắt đầu bằng start code = NAL đã bị cắt giữa chừng.
+    desync: bool,
+}
+
+/// `d` có thể là phần đầu của một start code (00 00 01 hoặc 00 00 00 01) không?
+fn looks_like_start(d: &[u8]) -> bool {
+    const A: [u8; 4] = [0, 0, 0, 1];
+    const B: [u8; 3] = [0, 0, 1];
+    let (na, nb) = (d.len().min(4), d.len().min(3));
+    d[..na] == A[..na] || d[..nb] == B[..nb]
 }
 
 /// Vị trí start code đầu tiên trong `b[from..]`: (vị trí byte 0 của start code, độ dài 3 hoặc 4).
@@ -37,6 +49,9 @@ fn find_start(b: &[u8], from: usize) -> Option<(usize, usize)> {
 impl NalSplitter {
     /// Nạp thêm dữ liệu, trả về các NAL đã hoàn chỉnh (đã biết điểm kết thúc nhờ start code kế tiếp).
     pub fn push(&mut self, data: &[u8]) -> Vec<Vec<u8>> {
+        if std::mem::take(&mut self.after_flush) && !data.is_empty() && !looks_like_start(data) {
+            self.desync = true;
+        }
         self.buf.extend_from_slice(data);
         let mut out = Vec::new();
         // Bỏ rác trước start code đầu tiên (nếu luồng bắt đầu giữa chừng).
@@ -63,9 +78,17 @@ impl NalSplitter {
     /// Lấy nốt NAL đang dở (dùng khi luồng im lặng: màn hình tĩnh nên khung cuối không có start code theo sau).
     pub fn flush(&mut self) -> Option<Vec<u8>> {
         match find_start(&self.buf, 0) {
-            Some((0, l)) if self.buf.len() > l + 1 => Some(std::mem::take(&mut self.buf)),
+            Some((0, l)) if self.buf.len() > l + 1 => {
+                self.after_flush = true;
+                Some(std::mem::take(&mut self.buf))
+            }
             _ => None,
         }
+    }
+
+    /// Đã từng cắt nhầm một khung giữa chừng (flush quá sớm)? Gọi xong là xoá cờ.
+    pub fn take_desync(&mut self) -> bool {
+        std::mem::take(&mut self.desync)
     }
 
     /// Có NAL đang chờ không (để biết có cần đặt hạn chờ im lặng hay không).
@@ -179,6 +202,23 @@ mod tests {
         assert!(!frames[1].key);
         assert_eq!(frames[1].data, P1);
         assert_eq!(frames[2].data, P2);
+    }
+
+    #[test]
+    fn detects_truncated_flush() {
+        let mut s = NalSplitter::default();
+        s.push(&[0, 0, 0, 1, 0x41, 0x9a]);
+        assert!(s.flush().is_some());
+        s.push(&[0x02, 0x03, 0x04]); // phần đuôi của chính NAL vừa flush
+        assert!(s.take_desync());
+        assert!(!s.take_desync(), "cờ được xoá sau khi đọc");
+
+        let mut s = NalSplitter::default();
+        s.push(&[0, 0, 0, 1, 0x41, 0x9a, 0x02]);
+        assert!(s.flush().is_some());
+        s.push(&[0, 0]); // đầu start code bị cắt đôi: chưa đủ để kết luận
+        s.push(&[0, 1, 0x41, 0x9a, 0x03]);
+        assert!(!s.take_desync());
     }
 
     #[test]

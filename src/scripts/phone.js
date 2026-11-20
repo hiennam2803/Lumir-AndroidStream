@@ -20,7 +20,7 @@ const VI={
  'Device disconnected':'Thiết bị đã ngắt kết nối',
  'Plug the cable back in and connect from the main window.':'Cắm lại cáp rồi kết nối từ cửa sổ chính.',
  'Open main window':'Mở cửa sổ chính',
- 'Unknown screen size':'Không xác định được kích thước màn hình','Device is not connected.':'Thiết bị chưa được kết nối.',
+ 'Unknown screen size':'Không xác định được kích thước màn hình','Unknown touch phase':'Thao tác chạm không hợp lệ','adb shell session lost':'Phiên adb shell đã mất','Device is not connected.':'Thiết bị chưa được kết nối.',
  'ADB timed out':'ADB không phản hồi','ADB not found':'Không tìm thấy ADB'
 };
 let lang='en',theme='dark',pinned=true,serial='',dev=null,connected=false,ar=9/20,live=false;
@@ -93,6 +93,7 @@ function setDevice(d){
  $('#ovl').hidden=connected;
  $$('.rb[data-t=key]').forEach(b=>b.disabled=!connected);
  const a=parseRes(dev&&dev.resolution);if(a&&!live)ar=a;
+ if(a&&winLand===null)winLand=a>1;
  fit();
  if(connected&&!was)startStream();
  else if(!connected&&was)stopStream(true,true);
@@ -108,8 +109,8 @@ function fit(){
 
 
 /* ── Video: Rust gửi gói nhị phân [loại][dữ liệu H.264 Annex-B]; ở đây giải mã bằng WebCodecs rồi vẽ lên canvas ──
-   loại: 0 = khung P · 1 = khung IDR (có SPS/PPS) · 2 = lỗi (văn bản) · 3 = đang nối lại (screenrecord tự dừng sau 180 giây) */
-const K_DELTA=0,K_KEY=1,K_ERROR=2,K_RESTART=3;
+   loại: 0 = khung P · 1 = khung IDR (có SPS/PPS) · 2 = lỗi (văn bản) · 3 = đang nối lại (screenrecord tự dừng sau 180 giây) · 4 = máy vừa xoay (luồng mới khác kích thước) */
+const K_DELTA=0,K_KEY=1,K_ERROR=2,K_RESTART=3,K_ROTATE=4;
 let ch=null,dec=null,codec='',needKey=true,ts=0,vctx=null,retryAt=0,retries=0;
 
 function setLive(on){live=on;$('#phone').classList.toggle('live',on)}
@@ -138,9 +139,13 @@ function openDecoder(c){
  dec.configure({codec:c,optimizeForLatency:true});
  codec=c;needKey=true;
 }
+let winLand=null;   /* cửa sổ đang ở tỉ lệ ngang (true) hay dọc (false); null = chưa biết */
 function drawFrame(f){
- const cv=$('#vid');
- if(cv.width!==f.displayWidth||cv.height!==f.displayHeight){cv.width=f.displayWidth;cv.height=f.displayHeight;ar=cv.width/cv.height;fit()}
+ if(cv.width!==f.displayWidth||cv.height!==f.displayHeight){
+  cv.width=f.displayWidth;cv.height=f.displayHeight;ar=cv.width/cv.height;fit();
+  const land=cv.width>cv.height;                      /* máy xoay ngang/dọc → cửa sổ xoay theo */
+  if(winLand!==null&&land!==winLand){winLand=land;call('fit_phone_window',{landscape:land}).catch(()=>{})}
+ }
  vctx.drawImage(f,0,0);f.close();
  retries=0;
  if(!live)setLive(true);
@@ -150,6 +155,7 @@ function onPacket(m){
  if(u.length<1)return;
  const k=u[0],p=u.subarray(1);
  if(k===K_ERROR){streamError(new TextDecoder().decode(p));return}
+ if(k===K_ROTATE){closeDecoder();needKey=true;return}   /* kích thước đổi: mở lại bộ giải mã ở IDR kế tiếp */
  if(k===K_RESTART){needKey=true;return}            /* giữ nguyên hình cũ, chờ IDR của lượt mới */
  if(k===K_KEY){const c=spsCodec(p);if(c&&c!==codec)openDecoder(c)}
  if(!dec||dec.state==='closed'||(needKey&&k!==K_KEY))return;
@@ -169,7 +175,7 @@ async function startStream(){
  if(demo){demoFrame();return}
  if(typeof VideoDecoder==='undefined'){setStatus('Video decoding is not supported on this system.',true);return}
  stopStream(false,false);
- vctx=vctx||$('#vid').getContext('2d',{alpha:false});
+ vctx=vctx||$('#vid').getContext('2d',{alpha:false,desynchronized:true});
  const c=new TA.core.Channel();ch=c;c.onmessage=m=>{if(ch===c)onPacket(m)};
  setStatus('Waiting for video stream',false);
  try{await call('start_stream',{serial,onFrame:c})}catch(e){if(ch===c)streamError(T(String(e)))}
@@ -204,51 +210,67 @@ function setPin(on,persist){
 }
 const toMain=()=>call('focus_main_window').catch(e=>toast(T(String(e))));
 
-/* ── Chuột → cảm ứng ──
-   Nhấn–nhả nhanh = chạm · giữ lâu = nhấn giữ · kéo = vuốt (thời lượng = thời gian kéo thật nên vuốt nhanh vẫn "fling")
-   Cuộn chuột = vuốt cuộn · chuột phải = Back · chuột giữa = Home.
-   adb chỉ nhận cử chỉ hoàn chỉnh nên lệnh được gửi khi nhả chuột. Toạ độ gửi đi đã chuẩn hoá 0..1. */
-const TAP_SLOP=8;                       /* px: di chuyển ít hơn mức này vẫn coi là đứng yên */
+/* ── Chuột → cảm ứng thời gian thực ──
+   Nhấn = ngón tay chạm xuống, kéo = ngón tay di chuyển, nhả = nhấc lên (Rust ghi thẳng vào màn hình cảm ứng nên
+   kéo mượt, nhấn giữ và fling đúng như tay thật). Cuộn chuột = vuốt cuộn · chuột phải = Back · chuột giữa = Home.
+   Toạ độ gửi đi đã chuẩn hoá 0..1. Lệnh gửi TUẦN TỰ (đợi lệnh trước xong) để giữ thứ tự down → move → up;
+   nhiều move liên tiếp chưa kịp gửi thì chỉ giữ cái mới nhất, nên độ trễ không bị dồn lại. */
 let ptr=null,wheelBusy=false,marker=null;
-const norm=(e,r)=>[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];
-const landscape=()=>{const v=$('#vid');return v.width>v.height};
-function touch(a,b,ms){
- if(!connected||!live)return Promise.resolve();
- return call('send_touch',{serial,x1:a[0],y1:a[1],x2:b[0],y2:b[1],durationMs:Math.round(ms),landscape:landscape()}).catch(err=>toast(T(String(err))));
+const tq=[];let tbusy=false;
+const cv=$('#vid');
+const norm=e=>{const r=cv.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
+const landscape=()=>cv.width>cv.height;
+function tpush(p,pt){
+ if(!connected||!live)return;
+ const it={p,x:pt[0],y:pt[1]},last=tq[tq.length-1];
+ if(p==='move'&&last&&last.p==='move')tq[tq.length-1]=it;else tq.push(it);
+ if(!tbusy)tpump();
+}
+async function tpump(){
+ tbusy=true;
+ while(tq.length){
+  const it=tq.shift();
+  try{await call('touch_event',{serial,phase:it.p,x:it.x,y:it.y,landscape:landscape()})}
+  catch(err){toast(T(String(err)));tq.length=0;ptr=null;showMarker(null,false)}
+ }
+ tbusy=false;
 }
 function showMarker(e,on){
  const ph=$('#phone');
  if(!marker){marker=document.createElement('i');marker.className='tp';ph.appendChild(marker)}
- if(!on){marker.classList.remove('on');return}
+ if(!on||!e){marker.classList.remove('on');return}
  const r=ph.getBoundingClientRect();
  marker.style.left=(e.clientX-r.left)+'px';marker.style.top=(e.clientY-r.top)+'px';marker.classList.add('on');
 }
-const cv=$('#vid');
+function release(e){
+ if(!ptr||(e&&e.pointerId!==ptr.id))return;
+ const pt=e?norm(e):ptr.last;
+ ptr=null;showMarker(null,false);tpush('up',pt);
+}
 cv.addEventListener('pointerdown',e=>{
- if(!connected||!live||ptr)return;
+ if(!connected||!live)return;
  if(e.button===2){press($('.rb[data-k=back]'));return}
  if(e.button===1){e.preventDefault();press($('.rb[data-k=home]'));return}
- if(e.button!==0)return;
- cv.setPointerCapture(e.pointerId);
- ptr={id:e.pointerId,x:e.clientX,y:e.clientY,t:performance.now(),a:norm(e,cv.getBoundingClientRect())};
- showMarker(e,true);
+ if(e.button!==0||ptr)return;
+ e.preventDefault();cv.setPointerCapture(e.pointerId);
+ const pt=norm(e);ptr={id:e.pointerId,last:pt};
+ showMarker(e,true);tpush('down',pt);
 });
-cv.addEventListener('pointermove',e=>{if(ptr&&e.pointerId===ptr.id)showMarker(e,true)});
-cv.addEventListener('pointerup',e=>{
+cv.addEventListener('pointermove',e=>{
  if(!ptr||e.pointerId!==ptr.id)return;
- const p=ptr;ptr=null;showMarker(e,false);
- const b=norm(e,cv.getBoundingClientRect()),ms=Math.max(1,performance.now()-p.t);
- const still=Math.hypot(e.clientX-p.x,e.clientY-p.y)<TAP_SLOP;
- touch(p.a,still?p.a:b,still?ms:Math.max(ms,60));
+ ptr.last=norm(e);showMarker(e,true);tpush('move',ptr.last);
 });
-cv.addEventListener('pointercancel',e=>{if(ptr&&e.pointerId===ptr.id){ptr=null;showMarker(e,false)}});
-/* Cuộn chuột: vuốt ngón tay ngược chiều cuộn; mỗi lần chỉ một lệnh để adb không bị dồn ứ */
+cv.addEventListener('pointerup',release);
+cv.addEventListener('pointercancel',release);
+cv.addEventListener('lostpointercapture',release);
+/* Cuộn chuột: vuốt ngược chiều cuộn; mỗi lần chỉ một lệnh để không dồn ứ */
 cv.addEventListener('wheel',e=>{
  e.preventDefault();
- if(!connected||!live||wheelBusy||!e.deltaY)return;
- const a=norm(e,cv.getBoundingClientRect()),dy=e.deltaY>0?-.3:.3;
- const b=[a[0],Math.min(.95,Math.max(.05,a[1]+dy))];
- wheelBusy=true;touch(a,b,220).finally(()=>{wheelBusy=false});
+ if(!connected||!live||wheelBusy||!e.deltaY||ptr)return;
+ const a=norm(e),len=Math.min(.5,Math.max(.12,Math.abs(e.deltaY)/500));
+ wheelBusy=true;
+ call('touch_scroll',{serial,x:a[0],y:a[1],dy:e.deltaY>0?-len:len,landscape:landscape()})
+  .catch(err=>toast(T(String(err)))).finally(()=>{wheelBusy=false});
 },{passive:false});
 
 document.addEventListener('click',e=>{

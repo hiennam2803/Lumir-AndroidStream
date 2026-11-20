@@ -235,6 +235,18 @@ impl Adb {
             .map_err(|e| self.spawn_err(e))
     }
 
+    /// Tiến trình dài hạn hai chiều (phiên shell lâu dài, theo dõi hướng xoay): stdin là pipe để ghi lệnh,
+    /// stderr bỏ đi (không ai đọc thì pipe đầy sẽ làm treo adb), stdout là pipe nếu `read_out`.
+    pub fn spawn_session(&self, args: &[&str], read_out: bool) -> Result<std::process::Child> {
+        self.command()
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(if read_out { Stdio::piped() } else { Stdio::null() })
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| self.spawn_err(e))
+    }
+
     pub fn shell(&self, serial: &str, cmd: &str) -> Result<String> {
         self.run(&["-s", serial, "shell", cmd], T_SHELL)
     }
