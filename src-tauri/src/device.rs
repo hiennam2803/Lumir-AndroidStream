@@ -15,6 +15,9 @@ pub const MSG_UNAUTHORIZED: &str = "Unlock the phone and allow USB debugging.";
 pub const MSG_OFFLINE: &str = "Device is offline. Unplug the cable and plug it in again.";
 pub const MSG_OLD_ANDROID: &str = "Android 5.0 or newer is required.";
 pub const MSG_NOT_CONNECTED: &str = "Device is not connected.";
+pub const MSG_OFFLINE_LAN: &str = "Device is offline. Check the Wi-Fi connection and connect again.";
+pub const MSG_LAN_REFUSED: &str = "Connection refused. Turn on Wireless debugging on the phone and check the port.";
+pub const MSG_LAN_TIMEOUT: &str = "Timed out. Check the IP address and that the phone is on the same Wi-Fi.";
 /// scrcpy-server yêu cầu tối thiểu Android 5.0 (API 21).
 const MIN_SDK: u32 = 21;
 
@@ -30,11 +33,20 @@ pub enum Status {
     Error,
 }
 
+/// Kiểu kết nối: cáp USB hay Wi-Fi/LAN (serial dạng `IP:cổng`).
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    Usb,
+    Lan,
+}
+
 #[derive(Serialize, Clone, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceView {
     pub id: String,
     pub serial: String,
+    pub kind: Kind,
     pub name: String,
     pub model: String,
     pub android: Option<String>,
@@ -121,7 +133,10 @@ pub fn build_views(entries: &[AdbEntry], reg: &Registry) -> Vec<DeviceView> {
             let details = reg.known.get(&e.serial);
             let (status, message) = match e.state.as_str() {
                 "unauthorized" => (Status::Unauthorized, Some(MSG_UNAUTHORIZED.to_string())),
-                "offline" => (Status::Error, Some(MSG_OFFLINE.to_string())),
+                "offline" => (
+                    Status::Error,
+                    Some((if adb::is_lan_serial(&e.serial) { MSG_OFFLINE_LAN } else { MSG_OFFLINE }).to_string()),
+                ),
                 "authorizing" | "connecting" => (Status::Connecting, None),
                 "device" => {
                     if reg.connected.contains(&e.serial) {
@@ -147,6 +162,7 @@ pub fn build_views(entries: &[AdbEntry], reg: &Registry) -> Vec<DeviceView> {
             DeviceView {
                 id: e.serial.clone(),
                 serial: e.serial.clone(),
+                kind: if adb::is_lan_serial(&e.serial) { Kind::Lan } else { Kind::Usb },
                 name,
                 model,
                 android: details.map(|d| d.android.clone()),
@@ -237,9 +253,9 @@ pub struct ScanOutcome {
     pub lost: Vec<String>,
 }
 
-/// Quét thiết bị USB qua `adb devices -l` và cập nhật registry.
+/// Quét thiết bị USB và Wi-Fi/LAN (`IP:cổng`) qua `adb devices -l` và cập nhật registry.
 pub fn scan(st: &AppState) -> Result<ScanOutcome, AdbError> {
-    let usb: Vec<AdbEntry> = st.adb.devices()?.into_iter().filter(|e| e.usb).collect();
+    let usb: Vec<AdbEntry> = st.adb.devices()?.into_iter().filter(|e| e.usb || adb::is_lan_serial(&e.serial)).collect();
     let mut reg = lock(&st.reg);
     let lost = reg.reconcile(&usb);
     Ok(ScanOutcome { devices: build_views(&usb, &reg), lost })
@@ -365,6 +381,18 @@ pub fn phone_window_size(resolution: Option<&str>) -> (f64, f64) {
         (760.0, 760.0 / ar)
     };
     ((pw + 12.0 + 12.0 + 52.0 + 12.0).round(), (ph + 34.0 + 8.0 + 12.0).round())
+}
+
+/// Thông báo dễ hiểu cho lỗi `adb connect` (Windows và Linux in lỗi khác nhau).
+pub fn friendly_connect_error(msg: &str) -> String {
+    let m = msg.to_lowercase();
+    if m.contains("refused") || m.contains("10061") {
+        MSG_LAN_REFUSED.into()
+    } else if m.contains("timed out") || m.contains("timeout") || m.contains("10060") || m.contains("no route") || m.contains("unreachable") {
+        MSG_LAN_TIMEOUT.into()
+    } else {
+        msg.to_string()
+    }
 }
 
 fn map_adb_err(e: AdbError) -> String {
@@ -626,5 +654,32 @@ esac
         assert_eq!(v[0].resolution.as_deref(), Some("1080×2340"));
         assert_eq!(v[0].usb_speed.as_deref(), Some("USB 2.0 (480 Mbps)"));
         let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+#[cfg(test)]
+mod lan_tests {
+    use super::*;
+
+    fn lan_entry(state: &str) -> AdbEntry {
+        AdbEntry { serial: "192.168.1.42:5555".into(), state: state.into(), model: None, device: None, usb: false }
+    }
+
+    #[test]
+    fn lan_view_kind_and_offline_message() {
+        let reg = Registry::default();
+        let v = build_views(&[lan_entry("offline")], &reg);
+        assert_eq!(v[0].kind, Kind::Lan);
+        assert_eq!(v[0].message.as_deref(), Some(MSG_OFFLINE_LAN));
+        let j = serde_json::to_string(&v[0]).unwrap();
+        assert!(j.contains("\"kind\":\"lan\""), "{j}");
+    }
+
+    #[test]
+    fn friendly_errors() {
+        assert_eq!(friendly_connect_error("failed to connect to '1.2.3.4:5555': Connection refused"), MSG_LAN_REFUSED);
+        assert_eq!(friendly_connect_error("cannot connect to 1.2.3.4:5555: (10060)"), MSG_LAN_TIMEOUT);
+        assert_eq!(friendly_connect_error("ADB timed out"), MSG_LAN_TIMEOUT);
+        assert_eq!(friendly_connect_error("something else"), "something else");
     }
 }

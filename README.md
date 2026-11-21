@@ -82,3 +82,14 @@ Nếu scrcpy không chạy được trên một máy, app tự rơi về `screen
 - Tuỳ chọn encoder (độ trễ thấp) nằm ở hằng `CODEC_OPTIONS` trong `scvideo.rs`.
 - Log server in ra terminal với tiền tố `[lumir/scrcpy-video]`.
 - Chạy `cargo test` trong `src-tauri/` để kiểm tra phần parse header/lệnh.
+
+## Kết nối LAN (Wi-Fi) — bước 1
+
+Thiết bị Wi-Fi dùng chung toàn bộ đường video/điều khiển như USB, chỉ khác serial (`IP:cổng`).
+
+1. Trên điện thoại (Android 11+): Tuỳ chọn nhà phát triển → bật **Gỡ lỗi không dây**. Điện thoại và máy tính phải cùng mạng Wi-Fi.
+   Android cũ hơn: cắm cáp một lần và chạy `adb tcpip 5555`, sau đó rút cáp.
+2. Trong LUMIR: tab **LAN** → **Add device** → nhập IP và cổng (cổng hiển thị ở màn hình Gỡ lỗi không dây, thường 5555 với `adb tcpip`). App tự chạy `adb connect` rồi kết nối.
+3. Danh sách LAN được lưu trên máy (localStorage); thiết bị chưa kết nối vẫn hiện để bấm Connect lại.
+
+Chưa có: ghép nối bằng mã 6 số (`adb pair`, bước 2) và tự tìm thiết bị trong mạng. LAN thường chậm hơn USB: nên dùng preset **Mượt**.

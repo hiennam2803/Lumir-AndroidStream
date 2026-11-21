@@ -1,6 +1,7 @@
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const ic=n=>`<svg><use href="#i-${n}"/></svg>`;
 const VI={"Android Device Manager": "Trình quản lý thiết bị Android", "All": "Tất cả", "Connected": "Đã kết nối", "Offline": "Ngoại tuyến", "Disconnected": "Chưa kết nối", "Connecting": "Đang kết nối", "Error": "Lỗi", "ADB service ready": "Dịch vụ ADB sẵn sàng", "Filter devices": "Lọc thiết bị", "Settings": "Cài đặt", "More options": "Tùy chọn khác", "Refresh": "Làm mới", "Connect all": "Kết nối tất cả", "Add device": "Thêm thiết bị", "Ready": "Sẵn sàng", "Total devices": "Tổng thiết bị", "Last refresh": "Làm mới lần cuối", "Add LAN device": "Thêm thiết bị LAN", "Device IP address": "Địa chỉ IP thiết bị", "Port": "Cổng", "Device name (optional)": "Tên thiết bị (không bắt buộc)", "Cancel": "Hủy", "Close": "Đóng", "Living room tablet": "Máy tính bảng phòng khách", "General": "Chung", "Theme": "Giao diện", "Dark": "Tối", "Light": "Sáng", "System": "Theo hệ thống", "Language": "Ngôn ngữ", "Startup behavior": "Khi khởi động", "Open main panel": "Mở bảng chính", "Start in tray": "Chạy ẩn trong khay", "Restore last session": "Khôi phục phiên trước", "Minimize to tray": "Thu nhỏ xuống khay", "Connection": "Kết nối", "Default connection mode": "Chế độ kết nối mặc định", "Ask each time": "Hỏi mỗi lần", "Auto refresh": "Tự động làm mới", "Connection timeout": "Thời gian chờ kết nối", "5 seconds": "5 giây", "10 seconds": "10 giây", "30 seconds": "30 giây", "About": "Giới thiệu", "· Version 0.1.0 (prototype)": "· Phiên bản 0.1.0 (bản mẫu)", "Find, connect and manage Android devices over USB and your local network.": "Tìm, kết nối và quản lý thiết bị Android qua USB và mạng nội bộ.", "Done": "Xong", "Disconnect": "Ngắt kết nối", "Retry": "Thử lại", "Connect": "Kết nối", "Show details": "Xem chi tiết", "Resolution": "Độ phân giải", "Device ID": "ID thiết bị", "Status": "Trạng thái", "IP address": "Địa chỉ IP", "USB 3.0 cable": "Cáp USB 3.0", "Needs attention": "Cần kiểm tra", "{0} connected": "{0} đã kết nối", "No matching devices": "Không có thiết bị phù hợp", "Change the filter to see the other {0} devices.": "Đổi bộ lọc để xem các thiết bị {0} khác.", "No USB devices found": "Không tìm thấy thiết bị USB", "Connect your phone with a USB cable and enable USB debugging in Developer options.": "Cắm điện thoại bằng cáp USB và bật Gỡ lỗi USB trong Tùy chọn nhà phát triển.", "Scan again": "Quét lại", "No LAN devices found": "Không tìm thấy thiết bị LAN", "Make sure the phone and this PC are on the same Wi-Fi network, then add the phone by IP address.": "Đảm bảo điện thoại và máy tính cùng mạng Wi-Fi, rồi thêm điện thoại bằng địa chỉ IP.", "Device list refreshed": "Đã làm mới danh sách thiết bị", "Could not reach {0}. Check the network and retry.": "Không kết nối được {0}. Kiểm tra mạng rồi thử lại.", "All devices disconnected": "Đã ngắt kết nối tất cả thiết bị", "Demo data restored": "Đã khôi phục dữ liệu mẫu", "{0} disconnected": "{0} đã ngắt kết nối", "{0} list cleared": "Đã xóa danh sách {0}", "Copied to clipboard": "Đã sao chép", "{0} removed": "Đã xóa {0}", "Enter a valid IP address and port": "Nhập địa chỉ IP và cổng hợp lệ", "Device added": "Đã thêm thiết bị", "Unknown model": "Model không rõ", "Refresh all": "Làm mới tất cả", "Disconnect all": "Ngắt kết nối tất cả", "Restore demo data": "Khôi phục dữ liệu mẫu", "Disconnect all {0}": "Ngắt kết nối tất cả {0}", "Clear list (show empty state)": "Xóa danh sách (xem trạng thái trống)", "Refresh device": "Làm mới thiết bị", "Copy device ID": "Sao chép ID thiết bị", "Copy IP address": "Sao chép địa chỉ IP", "Remove device": "Xóa thiết bị", "Unauthorized": "Chưa cấp quyền", "Open screen": "Mở màn hình", "Device is not connected.": "Thiết bị chưa được kết nối.", "ADB not found": "Không tìm thấy ADB", "ADB timed out": "ADB không phản hồi", "ADB service error": "Lỗi dịch vụ ADB", "Unlock the phone and allow USB debugging.": "Mở khóa điện thoại và cho phép gỡ lỗi USB.", "Device is offline. Unplug the cable and plug it in again.": "Thiết bị đang offline. Rút cáp rồi cắm lại.", "Android 5.0 or newer is required.": "Cần Android 5.0 trở lên.", "Device is already connected.": "Thiết bị đã được kết nối.", "Connection is already in progress.": "Đang kết nối.", "{0} was unplugged or lost": "{0} đã bị rút hoặc mất kết nối", "LAN connection is not available yet": "Chưa hỗ trợ kết nối LAN"};
+Object.assign(VI,{'Connection refused. Turn on Wireless debugging on the phone and check the port.':'Kết nối bị từ chối. Hãy bật Gỡ lỗi không dây trên điện thoại và kiểm tra lại cổng.','Timed out. Check the IP address and that the phone is on the same Wi-Fi.':'Hết thời gian chờ. Kiểm tra địa chỉ IP và chắc rằng điện thoại cùng mạng Wi-Fi.','Enter a valid IP address and port.':'Nhập địa chỉ IP và cổng hợp lệ.','Device is offline. Check the Wi-Fi connection and connect again.':'Thiết bị đang ngoại tuyến. Kiểm tra Wi-Fi rồi kết nối lại.'});
 let lang='en',theme='dark';
 const T=(k,...a)=>{let v=lang==='vi'&&VI[k]||k;a.forEach((x,i)=>v=v.replace('{'+i+'}',x));return v};
 const lb=x=>T(LBL[x]);
@@ -40,7 +41,7 @@ function devHTML(d){
    <div class="inf"><div class="nm">${esc(d.name)}<span class="tag">${d.t.toUpperCase()}</span></div><div class="sub">${sub}</div>${d.msg&&d.status!=='connected'?`<div class="sub msg">${esc(T(d.msg))}</div>`:''}</div>
    <span class="badge"><i></i>${lb(d.status)}</span>
    <div class="acts">
-    ${on&&inTauri&&d.t==='usb'?`<button class="btn sm" data-a="phone">${T('Open screen')}</button>`:''}
+    ${on&&inTauri?`<button class="btn sm" data-a="phone">${T('Open screen')}</button>`:''}
     <button class="btn sm${on?'':' pri'}" data-a="${on?'disc':'conn'}" ${bz?'disabled':''}>${T(on?'Disconnect':((d.status==='error'||d.status==='unauthorized')?'Retry':'Connect'))}</button>
     <button class="btn ico sm ghost" data-a="dmore" aria-label="${T('More options')}">${ic('more')}</button>
     <button class="btn ico sm ghost" data-a="exp" aria-label="${T('Show details')}"><span class="chev" style="display:flex">${ic('dn')}</span></button>
@@ -60,6 +61,11 @@ function render(){
  $('#sT').textContent=devs.length;$('#sC').textContent=devs.filter(d=>d.status==='connected').length;$('#sR').textContent=hhmm(lastRefresh);
 }
 function connect(d){
+ if(inTauri&&d.t==='lan'){
+  if(d.status==='connecting')return;
+  lanTmp.set(d.id,{busy:true});d.status='connecting';d.msg=null;render();
+  call('connect_lan',{host:d.ip,port:d.port}).then(()=>toast(T('{0} connected',d.name))).catch(e=>{const m=String(e);lanTmp.set(d.id,{msg:m});d.status='error';d.msg=m;render();toast(T(m))});
+  return}
  if(inTauri&&d.t==='usb'){
   if(d.status==='connecting')return;d.status='connecting';d.msg=null;render();
   call('connect_device',{serial:d.serial}).then(()=>toast(T('{0} connected',d.name))).catch(e=>toast(T(String(e))));
@@ -96,7 +102,7 @@ document.addEventListener('click',e=>{
  if(a){
   const k=a.dataset.a,d=card&&devs.find(x=>String(x.id)===card.dataset.id),t=p&&p.dataset.t;
   if(k==='refresh')refresh();
-  else if(k==='add'){if(inTauri)toast(T('LAN connection is not available yet'));else open('ovAdd'),setTimeout(()=>$('#aIp').focus(),50)}
+  else if(k==='add'){open('ovAdd');setTimeout(()=>$('#aIp').focus(),50)}
   else if(k==='all'){devs.filter(x=>x.t===t&&x.status!=='connected').forEach(connect)}
   else if(k==='phone'&&d)openPhone(d);
   else if(k==='conn')connect(d);
@@ -108,10 +114,10 @@ document.addEventListener('click',e=>{
    };menu(a,[{k:'d',i:'off',l:T('Disconnect all {0}',t.toUpperCase())},...(inTauri?[]:[{k:'c',i:'trash',l:T('Clear list (show empty state)'),d:1}])])}
   else if(k==='dmore'){menu.cb=c=>{
     if(c==='id'){toast(T('Copied to clipboard'))}
-    if(c==='rm'){devs=devs.filter(x=>x!==d);if(sel===d.id)sel=null;render();toast(T('{0} removed',d.name))}
+    if(c==='rm'){if(inTauri){lanSaved=lanSaved.filter(x=>lanId(x.ip,x.port)!==d.id);saveLan();lanTmp.delete(d.id);call('disconnect_device',{serial:d.serial||d.id}).catch(()=>{})}devs=devs.filter(x=>x!==d);if(sel===d.id)sel=null;render();toast(T('{0} removed',d.name))}
     if(c==='rf'){refresh()}
     if(c==='ph')openPhone(d);
-   };menu(a,[...(inTauri&&d.t==='usb'&&d.status==='connected'?[{k:'ph',i:'ph',l:T('Open screen')}]:[]),{k:'rf',i:'ref',l:T('Refresh device')},{k:'id',i:'copy',l:T(d.t==='usb'?'Copy device ID':'Copy IP address')},...(d.t==='lan'?['-',{k:'rm',i:'trash',l:T('Remove device'),d:1}]:[])])}
+   };menu(a,[...(inTauri&&d.status==='connected'?[{k:'ph',i:'ph',l:T('Open screen')}]:[]),{k:'rf',i:'ref',l:T('Refresh device')},{k:'id',i:'copy',l:T(d.t==='usb'?'Copy device ID':'Copy IP address')},...(d.t==='lan'?['-',{k:'rm',i:'trash',l:T('Remove device'),d:1}]:[])])}
   return;
  }
  if(card){const d=devs.find(x=>String(x.id)===card.dataset.id);if(d){
@@ -123,6 +129,12 @@ $('#aOk').onclick=()=>{
  const ip=$('#aIp'),port=$('#aPort'),ok=/^(\d{1,3}\.){3}\d{1,3}$/.test(ip.value.trim())&&ip.value.split('.').every(n=>+n<256);
  ip.classList.toggle('bad',!ok);const pv=+port.value;port.classList.toggle('bad',!(pv>0&&pv<65536));
  if(!ok||!(pv>0&&pv<65536))return toast(T('Enter a valid IP address and port'));
+ if(inTauri){
+  const ipv=ip.value.trim(),nm=$('#aName').value.trim(),id=lanId(ipv,pv),s=lanSaved.find(x=>lanId(x.ip,x.port)===id);
+  if(s){if(nm)s.name=nm}else lanSaved.push({ip:ipv,port:pv,name:nm});
+  saveLan();['aIp','aName'].forEach(i=>$('#'+i).value='');shut();setDevices(lastBackend);toast(T('Device added'));
+  const d=devs.find(x=>x.id===id);if(d&&d.status!=='connected'&&d.status!=='connecting')connect(d);
+  return}
  devs.push({id:uid++,t:'lan',name:$('#aName').value.trim()||'Android '+ip.value.split('.').pop(),model:T('Unknown model'),av:'—',ip:ip.value.trim(),port:pv,res:'—',status:'disconnected'});
  ['aIp','aName'].forEach(i=>$('#'+i).value='');shut();render();toast(T('Device added'));
 };
@@ -151,16 +163,34 @@ applyTheme();applyStatic();
 render();
 /* ───── Backend: thiết bị USB thật ───── */
 function openPhone(d){
- if(!inTauri||d.t!=='usb')return;
- call('open_phone_window',{serial:d.serial}).catch(e=>toast(T(String(e))));
+ if(!inTauri)return;
+ call('open_phone_window',{serial:d.serial||d.id}).catch(e=>toast(T(String(e))));
 }
 function discAll(list){
- list.forEach(d=>{if(inTauri&&d.t==='usb')call('disconnect_device',{serial:d.serial}).catch(()=>{});d.status='disconnected';d.msg=null});
+ list.forEach(d=>{if(inTauri){lanTmp.delete(d.id);call('disconnect_device',{serial:d.serial||d.id}).catch(()=>{})}d.status='disconnected';d.msg=null});
 }
-const fromBackend=v=>({id:v.id,t:'usb',name:v.name,model:v.model,av:v.android||'—',serial:v.serial,res:v.resolution||'—',speed:v.usbSpeed,status:v.status,msg:v.message});
+/* Thiết bị Wi-Fi/LAN đã thêm: lưu lại để lần sau còn thấy dù chưa kết nối. Khoá = "ip:cổng" (cũng là serial adb). */
+const LANK='lumir-lan',lanId=(ip,port)=>ip+':'+port;
+let lanSaved=[],lastBackend=[];
+try{lanSaved=JSON.parse(localStorage.getItem(LANK)||'[]').filter(x=>x&&typeof x.ip==='string'&&x.port>0)}catch(_){}
+const saveLan=()=>{try{localStorage.setItem(LANK,JSON.stringify(lanSaved))}catch(_){}};
+const lanTmp=new Map();   /* id → {busy}|{msg}: trạng thái "đang kết nối / lỗi" khi adb chưa liệt kê máy */
+const fromBackend=v=>{
+ const lan=v.kind==='lan',i=lan?v.serial.lastIndexOf(':'):-1;
+ return {id:v.id,t:lan?'lan':'usb',name:v.name,model:v.model,av:v.android||'—',serial:v.serial,res:v.resolution||'—',speed:v.usbSpeed,status:v.status,msg:v.message,
+  ...(lan?{ip:v.serial.slice(0,i),port:+v.serial.slice(i+1)}:{})};
+};
 function setDevices(list){
- const open=new Map(devs.filter(d=>d.t==='usb').map(d=>[d.id,d.open]));
- devs=[...list.map(v=>{const n=fromBackend(v);n.open=!!open.get(n.id);return n}),...devs.filter(d=>d.t!=='usb')];
+ lastBackend=list;
+ const open=new Map(devs.map(d=>[d.id,d.open]));
+ const back=list.map(v=>{const n=fromBackend(v);n.open=!!open.get(n.id);return n});
+ const seen=new Set(back.map(d=>d.id));
+ back.forEach(d=>{if(d.t==='lan'){lanTmp.delete(d.id);const s=lanSaved.find(x=>lanId(x.ip,x.port)===d.id);if(s&&s.name)d.name=s.name}});
+ const local=lanSaved.filter(x=>!seen.has(lanId(x.ip,x.port))).map(x=>{
+  const id=lanId(x.ip,x.port),e=lanTmp.get(id);
+  return {id,t:'lan',name:x.name||'Android '+x.ip.split('.').pop(),model:T('Unknown model'),av:'—',ip:x.ip,port:x.port,res:'—',serial:id,
+   status:e?(e.busy?'connecting':'error'):'disconnected',msg:(e&&e.msg)||null,open:!!open.get(id)}});
+ devs=[...back,...local];
  if(sel!==null&&!devs.some(d=>d.id===sel))sel=null;
  lastRefresh=new Date();render();
 }

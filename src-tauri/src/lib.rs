@@ -1,5 +1,5 @@
 //! LUMIR — Phase 2: kết nối USB thật (ADB) + truyền hình ảnh màn hình (screenrecord H.264 → WebCodecs).
-//! Điều khiển: phím điều hướng + chạm/vuốt/cuộn bằng chuột (evdev thời gian thực), tự xoay theo máy; chưa có bàn phím; LAN chưa được hỗ trợ.
+//! Điều khiển: phím điều hướng + chạm/vuốt/cuộn bằng chuột (evdev thời gian thực), tự xoay theo máy; chưa có bàn phím; LAN: bước 1 = kết nối bằng `adb connect IP:cổng` (chưa có ghép nối bằng mã).
 
 mod adb;
 mod commands;
@@ -44,6 +44,7 @@ pub fn run() {
             commands::adb_status,
             commands::list_devices,
             commands::connect_device,
+            commands::connect_lan,
             commands::disconnect_device,
             commands::restart_adb,
             commands::open_phone_window,

@@ -25,6 +25,8 @@ const ADB_NAME: &str = "adb";
 const T_DEVICES: Duration = Duration::from_secs(4);
 const T_SHELL: Duration = Duration::from_secs(6);
 const T_SERVER: Duration = Duration::from_secs(10);
+/// `adb connect` tới máy không với tới được có thể chờ rất lâu: tự cắt sớm.
+const T_CONNECT: Duration = Duration::from_secs(12);
 
 // ───────────────────────── Lỗi ─────────────────────────
 
@@ -233,6 +235,17 @@ impl Adb {
         Ok(parse_devices(&self.run(&["devices", "-l"], T_DEVICES)?))
     }
 
+    /// `adb connect IP:cổng` (Wi-Fi/LAN). adb luôn thoát với mã 0 kể cả khi thất bại nên phải đọc nội dung trả về.
+    pub fn connect(&self, addr: &str) -> Result<()> {
+        let out = self.run(&["connect", addr], T_CONNECT)?;
+        parse_connect(&out).map_err(AdbError::Failed)
+    }
+
+    /// `adb disconnect IP:cổng`.
+    pub fn disconnect_addr(&self, addr: &str) -> Result<()> {
+        self.run(&["disconnect", addr], T_DEVICES).map(|_| ())
+    }
+
     pub fn get_state(&self, serial: &str) -> Result<String> {
         Ok(self.run(&["-s", serial, "get-state"], T_DEVICES)?.trim().to_string())
     }
@@ -304,6 +317,30 @@ const KNOWN_STATES: &[&str] = &[
 
 fn is_usb_serial(serial: &str) -> bool {
     !(serial.contains(':') || serial.starts_with("emulator-") || serial.contains("_adb-tls"))
+}
+
+/// Serial của thiết bị Wi-Fi/LAN: `IPv4:cổng` (vd. `192.168.1.42:5555`). Không nhận emulator hay mục mDNS `_adb-tls`.
+pub fn is_lan_serial(serial: &str) -> bool {
+    let Some((host, port)) = serial.rsplit_once(':') else { return false };
+    let octets: Vec<&str> = host.split('.').collect();
+    octets.len() == 4
+        && octets
+            .iter()
+            .all(|o| !o.is_empty() && o.len() <= 3 && o.chars().all(|c| c.is_ascii_digit()) && o.parse::<u32>().is_ok_and(|n| n < 256))
+        && port.parse::<u16>().is_ok_and(|p| p > 0)
+}
+
+/// Đầu ra của `adb connect`: "connected to X" / "already connected to X" là thành công, còn lại là lỗi (trả dòng lỗi).
+pub fn parse_connect(out: &str) -> std::result::Result<(), String> {
+    let line = out.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with('*')).unwrap_or("");
+    let low = line.to_lowercase();
+    if low.starts_with("connected to") || low.starts_with("already connected to") {
+        Ok(())
+    } else if line.is_empty() {
+        Err("No response from adb connect".into())
+    } else {
+        Err(line.to_string())
+    }
 }
 
 pub fn parse_devices(out: &str) -> Vec<AdbEntry> {
@@ -492,5 +529,33 @@ adb server version (41) doesn't match this client (40); killing...
 
         let none = Adb::with_program("/definitely/not/adb");
         assert!(matches!(none.run(&["x"], Duration::from_secs(1)), Err(AdbError::NotFound(_))));
+    }
+}
+
+#[cfg(test)]
+mod lan_tests {
+    use super::*;
+
+    #[test]
+    fn lan_serials() {
+        assert!(is_lan_serial("192.168.1.42:5555"));
+        assert!(is_lan_serial("10.0.0.5:37123"));
+        assert!(!is_lan_serial("R5CW31ABXYZ"));
+        assert!(!is_lan_serial("emulator-5554"));
+        assert!(!is_lan_serial("adb-XYZ._adb-tls-connect._tcp"));
+        assert!(!is_lan_serial("192.168.1.42"));
+        assert!(!is_lan_serial("999.1.1.1:5555"));
+        assert!(!is_lan_serial("192.168.1.42:0"));
+        assert!(!is_lan_serial("192.168.1.42:99999"));
+    }
+
+    #[test]
+    fn connect_output() {
+        assert!(parse_connect("connected to 192.168.1.42:5555\n").is_ok());
+        assert!(parse_connect("already connected to 192.168.1.42:5555").is_ok());
+        assert!(parse_connect("* daemon started successfully *\nconnected to 10.0.0.2:5555").is_ok());
+        let e = parse_connect("failed to connect to '192.168.1.9:5555': Connection refused\n").unwrap_err();
+        assert!(e.contains("Connection refused"));
+        assert!(parse_connect("").is_err());
     }
 }

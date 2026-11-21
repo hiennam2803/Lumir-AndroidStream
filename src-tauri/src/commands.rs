@@ -13,7 +13,7 @@ use serde::Serialize;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
-use crate::adb::AdbError;
+use crate::adb::{self, AdbError};
 use crate::device::{self, AdbStatus, AppState, DeviceView};
 use crate::input::{Inputs, Phase};
 use crate::stream::{Quality, Streams};
@@ -122,6 +122,35 @@ pub async fn connect_device(app: AppHandle, state: Shared<'_>, serial: String) -
     .await
 }
 
+/// Kết nối thiết bị qua Wi-Fi/LAN: `adb connect IP:cổng`, chờ adb thấy máy, rồi đọc thông tin như thiết bị USB.
+#[tauri::command]
+pub async fn connect_lan(app: AppHandle, state: Shared<'_>, host: String, port: u16) -> Result<(), String> {
+    let st = state.inner().clone();
+    blocking(move || {
+        let serial = format!("{host}:{port}");
+        if !adb::is_lan_serial(&serial) {
+            return Err("Enter a valid IP address and port.".to_string());
+        }
+        if device::connected_view(&st, &serial).is_some() {
+            return Ok(()); // đã kết nối rồi
+        }
+        st.adb.connect(&serial).map_err(|e| device::friendly_connect_error(&e.to_string()))?;
+        // Sau `adb connect` máy có thể ở trạng thái offline/connecting trong chốc lát: chờ tới khi sẵn sàng (tối đa ~3 giây).
+        for _ in 0..15 {
+            if matches!(st.adb.get_state(&serial).as_deref(), Ok("device") | Ok("unauthorized")) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(200));
+        }
+        device::begin_connect(&st, &serial)?;
+        let _ = publish(&app, &st); // UI hiện "Connecting" ngay
+        let result = device::finish_connect(&st, &serial);
+        let _ = publish(&app, &st); // Connected hoặc Error (kèm lý do)
+        result
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn disconnect_device(
     app: AppHandle,
@@ -134,6 +163,9 @@ pub async fn disconnect_device(
     blocking(move || {
         inputs.stop(&serial);
         device::disconnect(&st, &serial);
+        if adb::is_lan_serial(&serial) {
+            let _ = st.adb.disconnect_addr(&serial); // gỡ khỏi danh sách adb để không còn hiện "offline"
+        }
         let _ = publish(&app, &st);
         Ok(())
     })
