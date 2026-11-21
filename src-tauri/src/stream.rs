@@ -1,3 +1,4 @@
+//! Đường chính: video qua scrcpy-server (scvideo.rs, độ trễ thấp). Nếu không chạy được thì rơi về đường dưới đây.
 //! Luồng video màn hình: `adb exec-out screenrecord --output-format=h264 -` → tách khung (h264.rs)
 //! → gửi nhị phân qua `Channel` tới cửa sổ điện thoại, nơi WebCodecs giải mã và vẽ lên canvas.
 //!
@@ -8,6 +9,7 @@
 
 use std::collections::HashMap;
 use std::io::Read;
+use std::net::{Shutdown, TcpStream};
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -21,6 +23,7 @@ use crate::adb::Adb;
 use crate::device::{self, AppState};
 use crate::input::{Link, Orient};
 use crate::h264::{encode_size, FrameBuilder, NalSplitter};
+use crate::scvideo;
 
 pub const K_DELTA: u8 = 0;
 pub const K_KEY: u8 = 1;
@@ -68,19 +71,24 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 /// Một phiên stream gắn với một cửa sổ điện thoại.
-struct Session {
+pub(crate) struct Session {
     stop: AtomicBool,
-    child: Mutex<Option<Child>>,
+    pub(crate) child: Mutex<Option<Child>>,
+    /// Socket video của scrcpy (scvideo.rs): đóng khi dừng để luồng đang chờ đọc thoát ngay.
+    pub(crate) sock: Mutex<Option<TcpStream>>,
 }
 
 impl Session {
-    fn stopped(&self) -> bool {
+    pub(crate) fn stopped(&self) -> bool {
         self.stop.load(Ordering::SeqCst)
     }
-    fn stop(&self) {
+    pub(crate) fn stop(&self) {
         self.stop.store(true, Ordering::SeqCst);
         if let Some(c) = lock(&self.child).as_mut() {
             let _ = c.kill();
+        }
+        if let Some(s) = lock(&self.sock).take() {
+            let _ = s.shutdown(Shutdown::Both);
         }
     }
 }
@@ -101,7 +109,7 @@ impl Streams {
         link: Arc<Link>,
         quality: Quality,
     ) {
-        let sess = Arc::new(Session { stop: AtomicBool::new(false), child: Mutex::new(None) });
+        let sess = Arc::new(Session { stop: AtomicBool::new(false), child: Mutex::new(None), sock: Mutex::new(None) });
         if let Some(old) = lock(&self.map).insert(label.to_string(), sess.clone()) {
             old.stop();
         }
@@ -118,9 +126,16 @@ impl Streams {
 }
 
 fn send(ch: &Channel<InvokeResponseBody>, kind: u8, payload: &[u8]) -> bool {
-    let mut v = Vec::with_capacity(payload.len() + 1);
+    send_parts(ch, kind, &[payload])
+}
+
+/// Như `send` nhưng ghép nhiều đoạn vào một gói (vd. SPS/PPS + IDR) mà không phải nối trước.
+pub(crate) fn send_parts(ch: &Channel<InvokeResponseBody>, kind: u8, parts: &[&[u8]]) -> bool {
+    let mut v = Vec::with_capacity(1 + parts.iter().map(|p| p.len()).sum::<usize>());
     v.push(kind);
-    v.extend_from_slice(payload);
+    for p in parts {
+        v.extend_from_slice(p);
+    }
     ch.send(InvokeResponseBody::Raw(v)).is_ok()
 }
 
@@ -141,7 +156,46 @@ fn rotated(orient: &Orient, at_start: Option<u8>) -> bool {
     }
 }
 
+/// Thử video qua scrcpy-server trước (độ trễ thấp). Trả true = đã xong hẳn (dừng / ngắt kết nối / cửa sổ đóng);
+/// false = scrcpy không chạy được trên máy này → rơi về screenrecord.
+fn run_scrcpy(st: &Arc<AppState>, serial: &str, sess: &Arc<Session>, ch: &Channel<InvokeResponseBody>, quality: Quality) -> bool {
+    let mut fails = 0u32;
+    while !sess.stopped() {
+        if device::connected_view(st, serial).is_none() {
+            send(ch, K_ERROR, device::MSG_NOT_CONNECTED.as_bytes());
+            return true;
+        }
+        let started = Instant::now();
+        let out = scvideo::run_once(&st.adb, serial, sess, ch, quality);
+        if sess.stopped() {
+            return true;
+        }
+        if out.frames > 0 && started.elapsed() > Duration::from_secs(2) {
+            fails = 0; // chạy ổn rồi mới đứt: nối lại, giải mã tiếp từ IDR mới
+            if !send(ch, K_RESTART, &[]) {
+                return true;
+            }
+            continue;
+        }
+        fails += 1;
+        eprintln!("[lumir] scrcpy video attempt {fails} failed: {}", out.err);
+        if fails >= 2 {
+            return false;
+        }
+        thread::sleep(Duration::from_millis(300));
+    }
+    true
+}
+
 fn run(st: Arc<AppState>, serial: String, sess: Arc<Session>, ch: Channel<InvokeResponseBody>, link: Arc<Link>, quality: Quality) {
+    if scvideo::enabled() && run_scrcpy(&st, &serial, &sess, &ch, quality) {
+        sess.stop();
+        return;
+    }
+    if sess.stopped() {
+        return;
+    }
+    eprintln!("[lumir] using screenrecord video fallback");
     let natural = device::connected_view(&st, &serial)
         .and_then(|v| v.resolution)
         .and_then(|r| device::parse_resolution(&r));

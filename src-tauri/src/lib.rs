@@ -7,6 +7,7 @@ mod ctl;
 mod device;
 mod h264;
 mod input;
+mod scvideo;
 mod stream;
 
 use std::sync::Arc;

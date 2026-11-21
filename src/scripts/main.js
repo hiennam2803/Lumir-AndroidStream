@@ -169,7 +169,7 @@ function renderAdb(){
  const ok=adbSt.ready,txt=ok?'ADB service ready':(adbSt.errorCode==='not_found'?'ADB not found':'ADB service error');
  $('#adbTxt').textContent=T(txt);
  $('.dot',el).style.background=ok?'':'var(--err)';
- el.title=ok?(adbSt.version||''):(adbSt.error||'')+(adbSt.errorCode==='not_found'?' — '+adbSt.path:'');
+ el.title='ADB executable: '+(adbSt.path||'(unresolved)')+(adbSt.version?'\n'+adbSt.version:'')+(adbSt.error?'\n'+adbSt.error:'');
 }
 async function initBackend(){
  const L=TA.event.listen;

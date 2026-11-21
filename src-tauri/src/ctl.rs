@@ -27,7 +27,7 @@ use crate::adb::Adb;
 /// Phiên bản server PHẢI khớp tuyệt đối với jar (server từ chối nếu lệch).
 pub const SERVER_VERSION: &str = "3.3.3";
 const SERVER_JAR: &[u8] = include_bytes!("../scrcpy/scrcpy-server-v3.3.3.jar");
-const REMOTE_JAR: &str = "/data/local/tmp/lumir-scrcpy-3.3.3.jar";
+pub(crate) const REMOTE_JAR: &str = "/data/local/tmp/lumir-scrcpy-3.3.3.jar";
 
 const ACTION_DOWN: u8 = 0;
 const ACTION_UP: u8 = 1;
@@ -232,7 +232,11 @@ clipboard_autosync=false send_device_meta=false 2>&1"
 }
 
 /// Đẩy jar lên máy nếu chưa có bản đúng kích thước (tên file có kèm phiên bản nên không bao giờ lẫn bản cũ).
-fn push_jar(adb: &Adb, serial: &str) -> Result<(), String> {
+/// Hai nơi (điều khiển + video) cùng gọi lúc khởi động: khoá lại để không đẩy jar chồng lên nhau.
+static PUSH_LOCK: Mutex<()> = Mutex::new(());
+
+pub(crate) fn push_jar(adb: &Adb, serial: &str) -> Result<(), String> {
+    let _guard = PUSH_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let want = SERVER_JAR.len().to_string();
     let have = adb
         .run(&["-s", serial, "shell", &format!("wc -c < {REMOTE_JAR} 2>/dev/null")], SHELL_TIMEOUT)

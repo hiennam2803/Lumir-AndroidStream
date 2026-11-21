@@ -24,8 +24,6 @@
     <div class="phone" id="phone">
       <!-- Hình ảnh màn hình điện thoại (giải mã H.264 bằng WebCodecs, vẽ bởi phone.js) -->
       <canvas class="vid" id="vid" width="540" height="1200"></canvas>
-      <!-- FPS · độ phân giải video · bitrate đo thực tế (bật/tắt trong bảng Chất lượng video) -->
-      <div class="stats" id="stats" hidden></div>
       <!-- Khung chờ: ẩn khi đã có hình -->
       <div class="ph-in" id="phIn">
         <svg class="ph-ico" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
@@ -45,7 +43,7 @@
     </div>
   </div>
 
-  <!-- Thanh điều hướng dọc bên phải (dựng bằng phone.js) -->
+  <!-- Thanh điều hướng dọc bên phải (dựng bằng phone.js) · F3 để ẩn/hiện -->
   <nav class="rail" id="rail" aria-label="Phone controls"></nav>
 </div>
 
@@ -65,10 +63,26 @@
     <label><span class="qp-l"><span data-t="Bitrate">Bitrate</span><b id="qpBrV"></b></span>
       <input type="range" id="qpBr" min="1" max="32" step="1"></label>
   </div>
-  <label class="qp-t"><input type="checkbox" id="qpStats"><span data-t="Show FPS & resolution">Show FPS &amp; resolution</span></label>
 </div>
 
+<section class="perf-panel" id="perfPanel" aria-label="Performance monitor" hidden>
+  <header class="perf-head"><div><strong>Performance</strong><span id="perfState">Waiting for stream</span></div><button id="perfExport" type="button">Export CSV</button></header>
+  <div class="perf-grid">
+    <div class="perf-metric"><span>Packet FPS</span><b id="perfPacket">—</b></div>
+    <div class="perf-metric"><span>Decoder FPS</span><b id="perfDecoder">—</b></div>
+    <div class="perf-metric"><span>Render FPS</span><b id="perfRender">—</b></div>
+    <div class="perf-metric"><span>Decode queue</span><b id="perfQueue">—</b></div>
+    <div class="perf-metric"><span>Decode → output</span><b id="perfDecodeMs">—</b></div>
+    <div class="perf-metric"><span>Canvas draw</span><b id="perfDrawMs">—</b></div>
+    <div class="perf-metric"><span>JS memory</span><b id="perfMemory">—</b></div>
+    <div class="perf-metric"><span>Decoder errors</span><b id="perfErrors">0</b></div>
+  </div>
+  <div class="perf-chart-title"><span>FPS history</span><small>Last 60 samples</small></div>
+  <svg class="perf-chart" viewBox="0 0 280 66" role="img" aria-label="FPS history"><line x1="0" y1="12" x2="280" y2="12"/><line x1="0" y1="36" x2="280" y2="36"/><line x1="0" y1="60" x2="280" y2="60"/><polyline id="perfLine" points=""/></svg>
+  <p class="perf-note">Packet FPS là số frame JavaScript nhận được, không phải FPS đo trực tiếp tại Rust. Memory chỉ khả dụng nếu WebView cung cấp API.</p>
+</section>
 <div id="toast" role="status"></div>
+<script src="scripts/performance.js"></script>
 <script src="scripts/phone.js"></script>
 </body>
 </html>

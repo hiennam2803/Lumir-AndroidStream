@@ -47,6 +47,9 @@
           "English"
         ]
       }
-    }
+    },
+    "resources": [
+      "adb/"
+    ]
   }
 }

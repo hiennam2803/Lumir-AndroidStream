@@ -81,31 +81,39 @@ pub struct Adb {
 }
 
 impl Adb {
-    /// Thứ tự tìm: biến môi trường LUMIR_ADB → resource_dir/adb → cạnh file exe → (dev) src-tauri/adb → PATH.
+    /// Resolve only the application-bundled ADB. Release builds never consult PATH,
+    /// LUMIR_ADB, or a machine-wide Android SDK installation.
+    /// In development, the checked-in src-tauri/adb directory remains available.
     pub fn locate(resource_dir: Option<&Path>) -> Self {
-        if let Some(p) = std::env::var_os("LUMIR_ADB") {
-            let p = PathBuf::from(p);
-            if p.is_file() {
-                return Self { program: p };
-            }
-        }
-        let mut candidates: Vec<PathBuf> = Vec::new();
-        if let Some(r) = resource_dir {
-            candidates.push(r.join("adb").join(ADB_NAME));
-        }
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                candidates.push(dir.join("adb").join(ADB_NAME));
-                candidates.push(dir.join(ADB_NAME));
-            }
-        }
-        #[cfg(debug_assertions)]
-        candidates.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("adb").join(ADB_NAME));
+        let bundled = resource_dir
+            .map(|r| r.join("adb").join(ADB_NAME))
+            .or_else(|| {
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|exe| exe.parent().map(|dir| dir.join("resources").join("adb").join(ADB_NAME)))
+            });
 
-        let program = candidates
-            .into_iter()
-            .find(|p| p.is_file())
-            .unwrap_or_else(|| PathBuf::from(ADB_NAME)); // rơi về PATH
+        #[cfg(debug_assertions)]
+        let candidate = bundled
+            .filter(|p| p.is_file())
+            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("adb").join(ADB_NAME));
+
+        #[cfg(not(debug_assertions))]
+        let candidate = bundled.unwrap_or_else(|| {
+            // Last-resort diagnostic location only; never ask Windows to search PATH.
+            std::env::current_dir()
+                .unwrap_or_default()
+                .join("resources")
+                .join("adb")
+                .join(ADB_NAME)
+        });
+
+        // Store an absolute path even when a development fallback was used.
+        let program = candidate.canonicalize().unwrap_or(candidate);
+        eprintln!("[LUMIR][ADB] Resolved executable: {}", program.display());
+        if !program.is_file() {
+            eprintln!("[LUMIR][ADB] ERROR: bundled executable does not exist: {}", program.display());
+        }
         Self { program }
     }
 
@@ -121,6 +129,11 @@ impl Adb {
     fn command(&self) -> Command {
         #[allow(unused_mut)] // cần `mut` trên Windows (creation_flags)
         let mut c = Command::new(&self.program);
+        // ADB loads its Windows USB support DLLs from its executable directory.
+        // Using the same directory as cwd also makes relative ADB sidecar lookups stable.
+        if let Some(dir) = self.program.parent().filter(|p| !p.as_os_str().is_empty()) {
+            c.current_dir(dir);
+        }
         #[cfg(windows)]
         c.creation_flags(CREATE_NO_WINDOW);
         c
@@ -380,6 +393,21 @@ pub fn parse_usb_speed(s: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn locate_uses_absolute_bundled_path() {
+        let root = std::env::temp_dir().join(format!("lumir adb bundle {}", std::process::id()));
+        let adb_dir = root.join("adb");
+        std::fs::create_dir_all(&adb_dir).unwrap();
+        let executable = adb_dir.join(ADB_NAME);
+        std::fs::write(&executable, b"test executable placeholder").unwrap();
+
+        let adb = Adb::locate(Some(&root));
+        assert!(adb.program().is_absolute());
+        assert_eq!(adb.program(), executable.canonicalize().unwrap());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
 
     #[test]
     fn parses_devices_list() {

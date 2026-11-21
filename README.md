@@ -72,3 +72,13 @@ app-icon.png             icon nguồn (npx tauri icon app-icon.png)
 ## Cửa sổ
 
 Mặc định 1024×720 (tự thu nhỏ nếu màn hình nhỏ), tối thiểu 800×560, kéo giãn/phóng to được. Header tự vẽ: kéo ở vùng trống, nhấp đúp để phóng to. Các nút Thu nhỏ / Phóng to / Đóng được thêm lúc chạy trong Tauri vì thiết kế gốc không có.
+
+## Video độ trễ thấp (scrcpy-server)
+
+Video mặc định đi qua `scrcpy-server` (file `src-tauri/scrcpy/scrcpy-server-v3.3.3.jar`, code ở `src-tauri/src/scvideo.rs`) thay cho `screenrecord`.
+Nếu scrcpy không chạy được trên một máy, app tự rơi về `screenrecord` (xem log `[lumir] using screenrecord video fallback`).
+
+- Ép dùng đường cũ để so sánh: đặt biến môi trường `LUMIR_VIDEO=screenrecord` rồi chạy app.
+- Tuỳ chọn encoder (độ trễ thấp) nằm ở hằng `CODEC_OPTIONS` trong `scvideo.rs`.
+- Log server in ra terminal với tiền tố `[lumir/scrcpy-video]`.
+- Chạy `cargo test` trong `src-tauri/` để kiểm tra phần parse header/lệnh.
