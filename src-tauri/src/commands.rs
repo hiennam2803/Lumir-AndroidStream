@@ -122,6 +122,13 @@ pub async fn connect_device(app: AppHandle, state: Shared<'_>, serial: String) -
     .await
 }
 
+/// Quét mạng bằng mDNS: các điện thoại đang bật Gỡ lỗi không dây (không cần biết IP trước).
+#[tauri::command]
+pub async fn discover_lan(state: Shared<'_>) -> Result<Vec<device::LanService>, String> {
+    let st = state.inner().clone();
+    blocking(move || device::discover_lan(&st)).await
+}
+
 /// Kết nối thiết bị qua Wi-Fi/LAN: `adb connect IP:cổng`, chờ adb thấy máy, rồi đọc thông tin như thiết bị USB.
 #[tauri::command]
 pub async fn connect_lan(app: AppHandle, state: Shared<'_>, host: String, port: u16) -> Result<(), String> {

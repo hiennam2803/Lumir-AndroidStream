@@ -34,7 +34,9 @@ function drawChart(){
  const points=a.map((x,i)=>`${(i/(Math.max(1,a.length-1)))*280},${60-Math.min(60,(x.render_fps||0)/max*54)}`).join(' ');
  line.setAttribute('points',points);
 }
-function toggle(force){state.open=force==null?!state.open:!!force;$('perfPanel').hidden=!state.open;if(state.open)fpsTick()}
+function toggle(force){state.open=force==null?!state.open:!!force;$('perfPanel').hidden=!state.open;
+ const b=document.querySelector('.rb[data-t=perf]');if(b){b.classList.toggle('on',state.open);b.setAttribute('aria-pressed',String(state.open))}
+ if(state.open)fpsTick()}
 function csv(){
  const cols=['time','packet_fps','decoder_fps','render_fps','decode_queue','decode_to_output_avg_ms','canvas_draw_avg_ms','js_heap_mb','decoder_errors'];
  const esc=v=>{if(v==null)return '';const s=String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
@@ -53,6 +55,7 @@ window.LumirPerf={
  toggle(force){toggle(force)},
 };
 $('perfExport')?.addEventListener('click',csv);
+$('perfClose')?.addEventListener('click',()=>toggle(false));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.open)toggle(false)});
 setInterval(fpsTick,1000);
 })();

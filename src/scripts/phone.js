@@ -12,7 +12,7 @@ const win=demo?null:TA.window.getCurrentWindow();
 const VI={
  'Back':'Quay lại','Home':'Màn hình chính','Recent apps':'Ứng dụng gần đây',
  'Volume up':'Tăng âm lượng','Volume down':'Giảm âm lượng','Power / screen':'Nguồn / màn hình',
- 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
+ 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
  'Main window':'Cửa sổ chính','Minimize':'Thu nhỏ','Close':'Đóng',
  'Waiting for video stream':'Đang chờ luồng video','Retry':'Thử lại',
  'Video decoding is not supported on this system.':'Hệ thống này không hỗ trợ giải mã video.',
@@ -38,7 +38,8 @@ const P={
  pin:'<path d="M9 4h6l-1 6 3 3H7l3-3z"/><path d="M12 13v7"/>',
  full:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
  gauge:'<path d="M4.5 17a8 8 0 1115 0"/><path d="M12 17l3.5-5"/>',
- unfull:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"',
+ perf:'<path d="M3.5 13h4l2.5-6 4 11 2.5-5h4"/>',
+ unfull:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
  keys:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
  main:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17"/>',
  min:'<path d="M6 12h12"/>',
@@ -59,6 +60,7 @@ const RAIL=[
  {t:'pin',i:'pin',l:'Always on top'},
  {t:'full',i:'full',l:'Full screen'},
  {t:'qual',i:'gauge',l:'Video quality'},
+ {t:'perf',i:'perf',l:'Performance'},
  {t:'map',i:'keys',l:'Key mapping (coming soon)'},
  {t:'sp'},
  {t:'main',i:'main',l:'Main window'}
@@ -348,6 +350,7 @@ document.addEventListener('click',e=>{
   else if(t==='pin')setPin(!pinned,true);
   else if(t==='full')setFull(!full);
   else if(t==='qual')setQP($('#qp').hidden);
+  else if(t==='perf'){if(window.LumirPerf)window.LumirPerf.toggle()}
   else if(t==='main')toMain();
   else if(t==='map')toast(T('Key mapping (coming soon)'));
   return}
@@ -360,7 +363,6 @@ $('#top').addEventListener('mousedown',e=>{if(e.button!==0||e.target.closest('bu
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
  if(e.key==='F11'){e.preventDefault();setFull(!full)}
- else if(e.key==='F2'){e.preventDefault();if(window.LumirPerf)window.LumirPerf.toggle()}   /* bảng PERF */
  else if(e.key==='F3'){e.preventDefault();setRailHidden(!document.body.classList.contains('rail-hidden'))}   /* ẩn/hiện thanh công cụ */
  else if(e.key==='Escape'&&!$('#qp').hidden){e.preventDefault();setQP(false)}
  else if(e.key==='Escape'&&full){e.preventDefault();setFull(false)}

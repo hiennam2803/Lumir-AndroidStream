@@ -383,6 +383,66 @@ pub fn phone_window_size(resolution: Option<&str>) -> (f64, f64) {
     ((pw + 12.0 + 12.0 + 52.0 + 12.0).round(), (ph + 34.0 + 8.0 + 12.0).round())
 }
 
+/// Thiết bị tìm thấy qua mDNS (Gỡ lỗi không dây). `pairing` = đang chờ ghép nối bằng mã (chưa kết nối trực tiếp được).
+#[derive(Serialize, Clone, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LanService {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub pairing: bool,
+}
+
+/// "adb-R5CW31ABXYZ-AbCdEf" → "R5CW31ABXYZ" (bỏ tiền tố `adb-` và hậu tố ngẫu nhiên 6 ký tự).
+fn mdns_display_name(instance: &str) -> String {
+    let s = instance.strip_prefix("adb-").unwrap_or(instance);
+    match s.rsplit_once('-') {
+        Some((head, tail)) if !head.is_empty() && tail.len() == 6 && tail.chars().all(|c| c.is_ascii_alphanumeric()) => head.to_string(),
+        _ => s.to_string(),
+    }
+}
+
+pub fn parse_lan_services(entries: &[adb::MdnsEntry]) -> Vec<LanService> {
+    let mut out: Vec<LanService> = Vec::new();
+    for e in entries {
+        if !adb::is_lan_serial(&e.addr) {
+            continue; // chỉ nhận IPv4:cổng
+        }
+        let Some((host, port)) = e.addr.rsplit_once(':') else { continue };
+        let port = port.parse::<u16>().unwrap_or(0);
+        if out.iter().any(|s| s.host == host && s.port == port) {
+            continue;
+        }
+        out.push(LanService { name: mdns_display_name(&e.name), host: host.into(), port, pairing: e.service.contains("pairing") });
+    }
+    out
+}
+
+/// Quét mạng bằng mDNS của adb. Lỗi (adb cũ / mDNS không chạy) trả về thông báo để frontend quyết định có hiện không.
+pub fn discover_lan(st: &AppState) -> Result<Vec<LanService>, String> {
+    let raw = st.adb.mdns_services_raw().map_err(map_adb_err)?;
+    {
+        // In đầu ra thô của adb mỗi khi nó đổi (xem ở terminal để chẩn đoán khi không thấy máy nào).
+        let mut last = lock(&LAST_MDNS);
+        if *last != raw {
+            eprintln!("[lumir/mdns] adb mdns services ->\n{}", raw.trim_end());
+            *last = raw.clone();
+        }
+    }
+    let list = parse_lan_services(&adb::parse_mdns(&raw));
+    if list.is_empty() {
+        // Không thấy máy nào: xem mDNS của adb có chạy không để báo lý do thay vì im lặng.
+        st.adb.mdns_check().map_err(|e| {
+            let m = map_adb_err(e);
+            eprintln!("[lumir/mdns] adb mdns check failed: {m}");
+            format!("adb mDNS is not running: {m}")
+        })?;
+    }
+    Ok(list)
+}
+
+static LAST_MDNS: Mutex<String> = Mutex::new(String::new());
+
 /// Thông báo dễ hiểu cho lỗi `adb connect` (Windows và Linux in lỗi khác nhau).
 pub fn friendly_connect_error(msg: &str) -> String {
     let m = msg.to_lowercase();
@@ -681,5 +741,29 @@ mod lan_tests {
         assert_eq!(friendly_connect_error("cannot connect to 1.2.3.4:5555: (10060)"), MSG_LAN_TIMEOUT);
         assert_eq!(friendly_connect_error("ADB timed out"), MSG_LAN_TIMEOUT);
         assert_eq!(friendly_connect_error("something else"), "something else");
+    }
+}
+
+#[cfg(test)]
+mod mdns_tests {
+    use super::*;
+
+    fn svc(name: &str, service: &str, addr: &str) -> adb::MdnsEntry {
+        adb::MdnsEntry { name: name.into(), service: service.into(), addr: addr.into() }
+    }
+
+    #[test]
+    fn lan_services_from_mdns() {
+        let v = parse_lan_services(&[
+            svc("adb-R5CW31ABXYZ-AbCdEf", "_adb-tls-connect._tcp", "192.168.1.42:37123"),
+            svc("adb-R5CW31ABXYZ", "_adb-tls-pairing._tcp", "192.168.1.42:41234"),
+            svc("adb-R5CW31ABXYZ-AbCdEf", "_adb-tls-connect._tcp", "192.168.1.42:37123"), // trùng
+            svc("adb-X-Zzzzzz", "_adb-tls-connect._tcp", "[fe80::1]:5555"),                  // IPv6: bỏ
+        ]);
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0], LanService { name: "R5CW31ABXYZ".into(), host: "192.168.1.42".into(), port: 37123, pairing: false });
+        assert!(v[1].pairing);
+        assert_eq!(mdns_display_name("adb-ABC-DEF-xyz123"), "ABC-DEF");
+        assert_eq!(mdns_display_name("Pixel"), "Pixel");
     }
 }

@@ -45,6 +45,7 @@ pub fn run() {
             commands::list_devices,
             commands::connect_device,
             commands::connect_lan,
+            commands::discover_lan,
             commands::disconnect_device,
             commands::restart_adb,
             commands::open_phone_window,

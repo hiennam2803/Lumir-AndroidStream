@@ -77,13 +77,19 @@ svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-l
 /* F3: ẩn/hiện thanh công cụ. */
 body.rail-hidden .rail{display:none}
 
-/* F11: chỉ giữ khung điện thoại và thanh công cụ; nền phủ kín màn hình, không phóng một tấm trắng riêng. */
-html.is-fullscreen,html.is-fullscreen body{width:100%;height:100%;background:#05080c}
+/* F11: toàn màn hình CHỈ còn màn hình điện thoại (không viền, không lề, không thanh tiêu đề).
+   Thanh nút dọc trượt ra khi đưa chuột vào mép phải màn hình; F3 ẩn hẳn. */
+html.is-fullscreen,html.is-fullscreen body{width:100%;height:100%;background:#000}
 html.is-fullscreen body{border:0}
 html.is-fullscreen .top{display:none}
 html.is-fullscreen .main{width:100vw;height:100vh;min-height:0}
-html.is-fullscreen .stage{padding:16px;}
-html.is-fullscreen .rail{margin:16px 12px 16px 0}
+html.is-fullscreen .stage{padding:0}
+html.is-fullscreen .phone{border:0;box-shadow:none;background:#000}
+html.is-fullscreen .rail{position:fixed;right:0;top:50%;margin:0;max-height:calc(100vh - 16px);z-index:31;
+  transform:translate(100%,-50%);transition:transform .18s ease;box-shadow:0 10px 32px rgba(0,0,0,.45)}
+html.is-fullscreen .rail::before{content:"";position:absolute;right:100%;top:0;bottom:0;width:10px}   /* vùng chạm mép phải */
+html.is-fullscreen .rail:hover,html.is-fullscreen .rail:focus-within{transform:translate(0,-50%)}
+html.is-fullscreen body.rail-hidden .rail{display:none}
 
 .rsep{width:22px;height:1px;background:var(--bd);margin:5px 0;flex:none}
 .rsp{flex:1}
@@ -126,11 +132,18 @@ html.is-fullscreen .rail{margin:16px 12px 16px 0}
 .qp-t input{accent-color:var(--ac)}
 
 /* ── Performance monitor (đo lường, không can thiệp pipeline) ── */
-.perf-panel{position:fixed;z-index:30;top:40px;right:8px;width:min(304px,calc(100vw - 16px));padding:12px;border:1px solid var(--bd);border-radius:0;background:var(--s1);box-shadow:0 14px 38px rgba(0,0,0,.42);display:flex;flex-direction:column;gap:10px;user-select:text}
+.perf-panel{position:fixed;z-index:30;top:40px;right:72px;width:min(304px,calc(100vw - 80px));padding:12px;border:1px solid var(--bd);border-radius:0;background:var(--s1);box-shadow:0 14px 38px rgba(0,0,0,.42);display:flex;flex-direction:column;gap:10px;user-select:text}
 .perf-panel[hidden]{display:none}
+/* Chừa chỗ cho thanh điều hướng bên phải; khi thanh ẩn hoặc đang toàn màn hình (thanh là lớp trượt) thì sát mép */
+body.rail-hidden .perf-panel,html.is-fullscreen .perf-panel{right:8px;width:min(304px,calc(100vw - 16px))}
 .perf-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .perf-head>div{display:flex;flex-direction:column;gap:2px}.perf-head strong{font-size:12px}.perf-head span,.perf-chart-title small{font-size:10px;color:var(--tx2)}
 .perf-head button{height:26px;padding:0 9px;border:1px solid var(--bd);border-radius:7px;background:var(--s2);font-size:10px;cursor:pointer}.perf-head button:hover{border-color:var(--ac);color:var(--ac)}
+/* Phải đặt cùng độ ưu tiên với `.perf-head>div` (cột dọc) thì Export và nút đóng mới nằm ngang hàng */
+.perf-head>.perf-acts{flex-direction:row;align-items:center;gap:6px}
+.perf-head .perf-x{width:26px;padding:0;display:grid;place-items:center}
+.perf-head .perf-x svg{width:12px;height:12px}
+.perf-head .perf-x:hover{border-color:var(--err);color:var(--err)}
 .perf-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .perf-metric{min-width:0;padding:7px 8px;border:1px solid var(--bd);border-radius:0;background:var(--bg);display:flex;flex-direction:column;gap:3px}
 .perf-metric span{font-size:10px;color:var(--tx2)}.perf-metric b{font:600 17px/1.2 ui-monospace,Consolas,monospace;color:var(--tx);overflow:hidden;text-overflow:ellipsis}

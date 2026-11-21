@@ -65,6 +65,14 @@ pub type Result<T> = std::result::Result<T, AdbError>;
 
 // ───────────────────────── Kiểu dữ liệu ─────────────────────────
 
+/// Một dịch vụ mDNS: tên instance, loại dịch vụ (`_adb-tls-connect._tcp`, `_adb-tls-pairing._tcp`...), địa chỉ `IP:cổng`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MdnsEntry {
+    pub name: String,
+    pub service: String,
+    pub addr: String,
+}
+
 /// Một dòng của `adb devices -l`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AdbEntry {
@@ -241,6 +249,16 @@ impl Adb {
         parse_connect(&out).map_err(AdbError::Failed)
     }
 
+    /// `adb mdns services` (đầu ra thô): các dịch vụ adb mà máy tính nhìn thấy trong mạng (Gỡ lỗi không dây của điện thoại).
+    pub fn mdns_services_raw(&self) -> Result<String> {
+        self.run(&["mdns", "services"], T_DEVICES)
+    }
+
+    /// `adb mdns check`: mDNS của adb có đang chạy không (lỗi nếu không).
+    pub fn mdns_check(&self) -> Result<String> {
+        self.run(&["mdns", "check"], T_DEVICES).map(|s| s.trim().to_string())
+    }
+
     /// `adb disconnect IP:cổng`.
     pub fn disconnect_addr(&self, addr: &str) -> Result<()> {
         self.run(&["disconnect", addr], T_DEVICES).map(|_| ())
@@ -341,6 +359,20 @@ pub fn parse_connect(out: &str) -> std::result::Result<(), String> {
     } else {
         Err(line.to_string())
     }
+}
+
+/// Đầu ra `adb mdns services`: mỗi dòng "tên<TAB>loại<TAB>IP:cổng"; dòng tiêu đề bị bỏ.
+pub fn parse_mdns(out: &str) -> Vec<MdnsEntry> {
+    out.lines()
+        .filter_map(|l| {
+            let mut it = l.split_whitespace();
+            let (name, service, addr) = (it.next()?, it.next()?, it.next()?);
+            if !service.starts_with('_') {
+                return None;
+            }
+            Some(MdnsEntry { name: name.into(), service: service.trim_end_matches('.').into(), addr: addr.into() })
+        })
+        .collect()
 }
 
 pub fn parse_devices(out: &str) -> Vec<AdbEntry> {
@@ -557,5 +589,21 @@ mod lan_tests {
         let e = parse_connect("failed to connect to '192.168.1.9:5555': Connection refused\n").unwrap_err();
         assert!(e.contains("Connection refused"));
         assert!(parse_connect("").is_err());
+    }
+}
+
+#[cfg(test)]
+mod mdns_parse_tests {
+    use super::*;
+
+    #[test]
+    fn parses_services() {
+        let out = "List of discovered mdns services\nadb-R5CW31ABXYZ-AbCdEf\t_adb-tls-connect._tcp.\t192.168.1.42:37123\nadb-R5CW31ABXYZ\t_adb-tls-pairing._tcp.\t192.168.1.42:41234\n";
+        let v = parse_mdns(out);
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].name, "adb-R5CW31ABXYZ-AbCdEf");
+        assert_eq!(v[0].service, "_adb-tls-connect._tcp");
+        assert_eq!(v[0].addr, "192.168.1.42:37123");
+        assert!(parse_mdns("List of discovered mdns services\n").is_empty());
     }
 }
