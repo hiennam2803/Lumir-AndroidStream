@@ -491,6 +491,25 @@ impl Link {
         }
     }
 
+    /// Chạm nhiều ngón (ánh xạ phím): mỗi `pointer` là một ngón riêng, độc lập với chuột. Chỉ chạy qua kênh scrcpy.
+    pub fn touch_ptr(&self, pointer: i64, phase: Phase, x: f64, y: f64, res: Option<(u32, u32)>, hint_landscape: bool) -> Result<(), String> {
+        let Some(c) = self.ctl_ready() else {
+            return Err("Key mapping needs the scrcpy control channel, which is still starting. Try again in a moment.".to_string());
+        };
+        let clamp = |v: f64| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 };
+        let rot = self.rotation(hint_landscape);
+        let Some((px, py, w, h)) = display_px(res, rot, clamp(x), clamp(y)) else {
+            return Err("Unknown screen size".to_string());
+        };
+        let act = match phase {
+            Phase::Down => Act::Down,
+            Phase::Move => Act::Move,
+            Phase::Up => Act::Up,
+        };
+        c.touch_ptr(pointer, act, px, py, w, h);
+        Ok(())
+    }
+
     /// Chép (hoặc cắt) đoạn đang chọn trên điện thoại và trả nội dung; chuỗi rỗng nếu không có gì.
     pub fn copy(&self, cut: bool) -> Result<String, String> {
         match self.ctl_ready() {

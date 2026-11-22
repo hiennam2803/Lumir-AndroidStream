@@ -334,6 +334,31 @@ pub async fn input_copy(state: Shared<'_>, inputs: State<'_, Arc<Inputs>>, seria
     blocking(move || link.copy(cut)).await
 }
 
+/// Chạm bằng ngón số `pointer` (0..) cho ánh xạ phím: nhiều phím giữ cùng lúc = nhiều ngón. Cùng hệ toạ độ với `touch_event`.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn touch_pointer(
+    state: Shared<'_>,
+    inputs: State<'_, Arc<Inputs>>,
+    serial: String,
+    pointer: u32,
+    phase: String,
+    x: f64,
+    y: f64,
+    landscape: bool,
+) -> Result<(), String> {
+    if pointer >= 1000 {
+        return Err("Unknown pointer".to_string());
+    }
+    let st = state.inner().clone();
+    let phase = Phase::parse(&phase).ok_or_else(|| "Unknown touch phase".to_string())?;
+    let view = device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    let link = inputs.get(&serial).unwrap_or_else(|| inputs.start(&st, &serial));
+    let res = view.resolution.as_deref().and_then(device::parse_resolution);
+    // id 100+ để không trùng ngón của chuột (-2).
+    blocking(move || link.touch_ptr(100 + i64::from(pointer), phase, x, y, res, landscape)).await
+}
+
 /// Chạm thời gian thực: phase = down | move | up, (x, y) chuẩn hoá 0..1 trên khung hình đang hiển thị.
 /// Frontend gọi tuần tự (đợi lệnh trước xong mới gửi lệnh sau) nên thứ tự down → move → up được giữ nguyên.
 #[tauri::command]

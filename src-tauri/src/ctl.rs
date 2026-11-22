@@ -51,6 +51,11 @@ pub enum Act {
 
 /// (x, y) là điểm ảnh theo hướng hiển thị hiện tại, (w, h) là kích thước màn hình tương ứng.
 pub fn touch_msg(act: Act, x: i32, y: i32, w: u16, h: u16) -> [u8; 32] {
+    touch_msg_p(act, x, y, w, h, FINGER)
+}
+
+/// Như `touch_msg` nhưng chọn ngón (`pointer`): mỗi ngón có id riêng nên giữ nhiều phím một lúc = nhiều ngón cùng chạm.
+pub fn touch_msg_p(act: Act, x: i32, y: i32, w: u16, h: u16, pointer: i64) -> [u8; 32] {
     let (action, pressure) = match act {
         Act::Down => (ACTION_DOWN, 0xFFFFu16),
         Act::Move => (ACTION_MOVE, 0xFFFF),
@@ -59,7 +64,7 @@ pub fn touch_msg(act: Act, x: i32, y: i32, w: u16, h: u16) -> [u8; 32] {
     let mut m = [0u8; 32];
     m[0] = 2;
     m[1] = action;
-    m[2..10].copy_from_slice(&FINGER.to_be_bytes());
+    m[2..10].copy_from_slice(&pointer.to_be_bytes());
     m[10..14].copy_from_slice(&x.to_be_bytes());
     m[14..18].copy_from_slice(&y.to_be_bytes());
     m[18..20].copy_from_slice(&w.to_be_bytes());
@@ -216,6 +221,11 @@ impl Ctl {
 
     pub fn key(&self, code: i32) -> bool {
         self.send(&key_msgs(code))
+    }
+
+    /// Chạm bằng một ngón có id riêng (ánh xạ phím).
+    pub fn touch_ptr(&self, pointer: i64, act: Act, x: i32, y: i32, w: u16, h: u16) -> bool {
+        self.send(&touch_msg_p(act, x, y, w, h, pointer))
     }
 
     /// Phím kèm Ctrl/Shift/Alt (Ctrl+A, Ctrl+C...).
@@ -531,5 +541,19 @@ mod clip_tests {
         let mut v = vec![0u8];
         v.extend_from_slice(&((MAX_CLIP_IN as u32) + 1).to_be_bytes());
         assert_eq!(read_dev_msg(&mut Cursor::new(v)).unwrap(), None);
+    }
+}
+
+#[cfg(test)]
+mod pointer_tests {
+    use super::*;
+
+    #[test]
+    fn touch_pointer_id_is_encoded() {
+        let m = touch_msg_p(Act::Down, 10, 20, 1080, 2400, 103);
+        assert_eq!(m[0], 2);
+        assert_eq!(&m[2..10], &103i64.to_be_bytes());
+        // ngón mặc định không đổi
+        assert_eq!(&touch_msg(Act::Down, 10, 20, 1080, 2400)[2..10], &FINGER.to_be_bytes());
     }
 }

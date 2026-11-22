@@ -12,7 +12,7 @@ const win=demo?null:TA.window.getCurrentWindow();
 const VI={
  'Back':'Quay lại','Home':'Màn hình chính','Recent apps':'Ứng dụng gần đây',
  'Volume up':'Tăng âm lượng','Volume down':'Giảm âm lượng','Power / screen':'Nguồn / màn hình',
- 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
+ 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Key mapping':'Ánh xạ phím','Key mapping on':'Đã bật ánh xạ phím','Key mapping off':'Đã tắt ánh xạ phím','Edit layout':'Sửa bố cục','Done':'Xong','Clear':'Xoá hết','Click the screen to add a key · drag to move · right-click to delete':'Bấm lên màn hình để thêm phím · kéo để di chuyển · chuột phải để xoá','Press a key to assign…':'Nhấn một phím để gán…','Key mapping on — mapped keys tap the screen':'Ánh xạ phím đang bật — phím đã gán sẽ chạm vào màn hình','Key already used':'Phím này đã được dùng','Too many keys (max 9)':'Quá nhiều phím (tối đa 9)','Key mapping needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
  'Main window':'Cửa sổ chính','Minimize':'Thu nhỏ','Close':'Đóng',
  'Waiting for video stream':'Đang chờ luồng video','Retry':'Thử lại',
  'Video decoding is not supported on this system.':'Hệ thống này không hỗ trợ giải mã video.',
@@ -63,7 +63,7 @@ const RAIL=[
  {t:'qual',i:'gauge',l:'Video quality'},
  {t:'perf',i:'perf',l:'Performance'},
  {t:'kbd',i:'kbd',l:'Type with PC keyboard'},
- {t:'map',i:'keys',l:'Key mapping (coming soon)'},
+ {t:'map',i:'keys',l:'Key mapping'},
  {t:'sp'},
  {t:'main',i:'main',l:'Main window'}
 ];
@@ -355,7 +355,7 @@ document.addEventListener('click',e=>{
   else if(t==='perf'){if(window.LumirPerf)window.LumirPerf.toggle()}
   else if(t==='main')toMain();
   else if(t==='kbd')setKbd(!kbd);
-  else if(t==='map')toast(T('Key mapping (coming soon)'));
+  else if(t==='map'){const k=KMAP();if(k)k.set(!k.on)}
   return}
  if(e.target.closest('#bRetry')){retries=0;startStream()}
  else if(e.target.closest('#bOvlMain'))toMain();
@@ -427,14 +427,21 @@ function kbMake(){
  return el;
 }
 function setKbd(on){
- if(on===kbd)return;kbd=on;
+ if(on===kbd)return;
+ if(on&&kmActive())KMAP().set(false);   /* gõ chữ và ánh xạ phím không dùng cùng lúc */
+ kbd=on;
  const b=$('.rb[data-t=kbd]');if(b){b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))}
  if(on){kbIn=kbMake();kbIn.focus();toast(T('Keyboard on: typing goes to the phone'))}
  else{if(kbIn){kbIn.remove();kbIn=null}toast(T('Keyboard off'))}
 }
 document.addEventListener('mouseup',e=>{if(kbd&&!(e.target.closest&&e.target.closest('#qp')))setTimeout(()=>{if(kbIn)kbIn.focus()},0)});
 window.addEventListener('focus',()=>{if(kbd&&kbIn)kbIn.focus()});
+
+/* Ánh xạ phím nằm ở scripts/keymap.js (nạp sau file này) và nối qua window.LumirKeymap; thiếu file đó thì mọi thứ khác vẫn chạy. */
+const KMAP=()=>window.LumirKeymap||null;
+const kmActive=()=>{const k=KMAP();return !!(k&&k.on)};
 document.addEventListener('keydown',e=>{
+ if(kmActive()&&KMAP().key(e))return;
  if(kbd&&kbKey(e))return;
  if(e.key==='F11'){e.preventDefault();setFull(!full)}
  else if(e.key==='F3'){e.preventDefault();setRailHidden(!document.body.classList.contains('rail-hidden'))}   /* ẩn/hiện thanh công cụ */
@@ -455,5 +462,7 @@ async function init(){
  await TA.event.listen('devices-changed',ev=>{const d=ev.payload.find(x=>x.serial===serial);setDevice(d||{status:'disconnected'})});
  setPin(pinned,false);
 }
+/* API cho scripts/keymap.js (file này nằm trong IIFE nên các biến của nó không tự lộ ra ngoài) */
+window.LumirPhone={call,toast,T,VI,$,cv,demo,landscape,kbErr,setKbd,get serial(){return serial},get kbd(){return kbd}};
 init();
 })();

@@ -54,6 +54,7 @@ pub fn run() {
             commands::input_key,
             commands::input_text,
             commands::input_copy,
+            commands::touch_pointer,
             commands::touch_event,
             commands::touch_scroll,
             commands::fit_phone_window,
