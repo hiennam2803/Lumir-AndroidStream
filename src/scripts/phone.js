@@ -12,7 +12,7 @@ const win=demo?null:TA.window.getCurrentWindow();
 const VI={
  'Back':'Quay lại','Home':'Màn hình chính','Recent apps':'Ứng dụng gần đây',
  'Volume up':'Tăng âm lượng','Volume down':'Giảm âm lượng','Power / screen':'Nguồn / màn hình',
- 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
+ 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
  'Main window':'Cửa sổ chính','Minimize':'Thu nhỏ','Close':'Đóng',
  'Waiting for video stream':'Đang chờ luồng video','Retry':'Thử lại',
  'Video decoding is not supported on this system.':'Hệ thống này không hỗ trợ giải mã video.',
@@ -39,6 +39,7 @@ const P={
  full:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
  gauge:'<path d="M4.5 17a8 8 0 1115 0"/><path d="M12 17l3.5-5"/>',
  perf:'<path d="M3.5 13h4l2.5-6 4 11 2.5-5h4"/>',
+ kbd:'<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10.5h.01M10.5 10.5h.01M14 10.5h.01M17.5 10.5h.01M7.5 14h9"/>',
  unfull:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
  keys:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
  main:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17"/>',
@@ -61,6 +62,7 @@ const RAIL=[
  {t:'full',i:'full',l:'Full screen'},
  {t:'qual',i:'gauge',l:'Video quality'},
  {t:'perf',i:'perf',l:'Performance'},
+ {t:'kbd',i:'kbd',l:'Type with PC keyboard'},
  {t:'map',i:'keys',l:'Key mapping (coming soon)'},
  {t:'sp'},
  {t:'main',i:'main',l:'Main window'}
@@ -352,6 +354,7 @@ document.addEventListener('click',e=>{
   else if(t==='qual')setQP($('#qp').hidden);
   else if(t==='perf'){if(window.LumirPerf)window.LumirPerf.toggle()}
   else if(t==='main')toMain();
+  else if(t==='kbd')setKbd(!kbd);
   else if(t==='map')toast(T('Key mapping (coming soon)'));
   return}
  if(e.target.closest('#bRetry')){retries=0;startStream()}
@@ -361,7 +364,78 @@ document.addEventListener('click',e=>{
 });
 $('#top').addEventListener('mousedown',e=>{if(e.button!==0||e.target.closest('button')||!win)return;win.startDragging().catch(()=>{})});
 document.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ── Bàn phím máy tính → điện thoại ──
+   Bật bằng nút bàn phím trên thanh dọc. Ký tự thường đi qua ô nhập ẩn (tạo bằng JS, không có trong HTML) nên bộ gõ tiếng Việt/IME hoạt động;
+   phím đặc biệt (Enter, Backspace, mũi tên, Ctrl+A/C/X/Z...) gửi thành mã phím Android. F11/F3/Esc vẫn là phím của cửa sổ.
+   Mọi lệnh xếp hàng tuần tự để chữ và Backspace (bộ gõ như Unikey gửi Backspace + chữ mới) giữ đúng thứ tự. */
+let kbd=false,kbQ=Promise.resolve(),kbErrAt=0,kbLast='',kbLastAt=0;
+let kbIn=null;   /* ô nhập ẩn: tạo bằng JS khi bật bàn phím, xoá khi tắt — không có trong HTML */
+const KB_KEYS={Enter:66,Backspace:67,Delete:112,Tab:61,ArrowUp:19,ArrowDown:20,ArrowLeft:21,ArrowRight:22,Home:122,End:123,PageUp:92,PageDown:93};
+const KB_CTRL={a:29,z:54};   /* Ctrl+C / Ctrl+X xử lý riêng: chép nội dung về clipboard máy tính */
+function kbSend(cmd,args){
+ if(demo)return;
+ kbQ=kbQ.then(()=>call(cmd,{serial,...args})).catch(kbErr);
+}
+function kbErr(e){const n=Date.now();if(n-kbErrAt>2000){kbErrAt=n;toast(T(String(e)))}}
+/* Đặt chữ vào clipboard máy tính (cần thao tác phím vừa rồi còn hiệu lực; không được thì dùng cách dự phòng). */
+async function pcCopy(text){
+ try{await navigator.clipboard.writeText(text);return}catch(_){}
+ const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';
+ document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(_){}ta.remove();
+ if(kbIn)kbIn.focus();
+}
+/* Ctrl+C / Ctrl+X: điện thoại chép (cắt) đoạn đang chọn rồi gửi nội dung về, đặt vào clipboard máy tính. Cùng hàng đợi với chữ đang gõ để đúng thứ tự. */
+function kbCopy(cut){
+ if(demo)return;
+ kbQ=kbQ.then(()=>call('input_copy',{serial,cut})).then(async s=>{
+  if(!s){toast(T('Nothing copied from the phone'));return}
+  await pcCopy(s);toast(T('Copied from the phone'))
+ }).catch(kbErr);
+}
+const kbText=s=>{if(s)kbSend('input_text',{text:s})};
+const kbCode=(code,e)=>kbSend('input_key',{code,ctrl:!!(e.ctrlKey||e.metaKey),shift:!!e.shiftKey,alt:!!e.altKey});
+function kbKey(e){
+ if(e.isComposing||e.key==='Process'||e.keyCode===229)return false;   /* bộ gõ đang soạn: để ô nhập xử lý */
+ if(e.target&&e.target.closest&&e.target.closest('#qp'))return false;  /* đang chỉnh thanh trượt chất lượng */
+ const c=KB_KEYS[e.key];
+ if(c){e.preventDefault();kbCode(c,e);return true}
+ if((e.ctrlKey||e.metaKey)&&!e.altKey){
+  const key=(e.key||'').toLowerCase();
+  if(key==='c'||key==='x'){e.preventDefault();kbCopy(key==='x');return true}
+  const k=KB_CTRL[key];
+  if(k){e.preventDefault();kbCode(k,e);return true}
+ }
+ return false;   /* ký tự thường, Ctrl+V (sự kiện paste), phím F... → xử lý ở nơi khác */
+}
+function kbMake(){
+ const el=document.createElement('textarea');
+ el.setAttribute('aria-hidden','true');el.tabIndex=-1;el.autocomplete='off';el.spellcheck=false;
+ el.setAttribute('autocapitalize','off');el.setAttribute('autocorrect','off');
+ el.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;resize:none;pointer-events:none';
+ el.addEventListener('input',e=>{
+  if(e.isComposing)return;
+  const v=el.value;el.value='';
+  if(v){kbLast=v;kbLastAt=performance.now();kbText(v)}
+ });
+ el.addEventListener('compositionend',e=>{
+  const v=e.data||el.value;el.value='';
+  if(v&&!(v===kbLast&&performance.now()-kbLastAt<60))kbText(v);   /* tránh gửi hai lần nếu trình duyệt đã gửi qua sự kiện input */
+ });
+ el.addEventListener('paste',e=>{e.preventDefault();kbText((e.clipboardData&&e.clipboardData.getData('text'))||'')});
+ document.body.appendChild(el);
+ return el;
+}
+function setKbd(on){
+ if(on===kbd)return;kbd=on;
+ const b=$('.rb[data-t=kbd]');if(b){b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))}
+ if(on){kbIn=kbMake();kbIn.focus();toast(T('Keyboard on: typing goes to the phone'))}
+ else{if(kbIn){kbIn.remove();kbIn=null}toast(T('Keyboard off'))}
+}
+document.addEventListener('mouseup',e=>{if(kbd&&!(e.target.closest&&e.target.closest('#qp')))setTimeout(()=>{if(kbIn)kbIn.focus()},0)});
+window.addEventListener('focus',()=>{if(kbd&&kbIn)kbIn.focus()});
 document.addEventListener('keydown',e=>{
+ if(kbd&&kbKey(e))return;
  if(e.key==='F11'){e.preventDefault();setFull(!full)}
  else if(e.key==='F3'){e.preventDefault();setRailHidden(!document.body.classList.contains('rail-hidden'))}   /* ẩn/hiện thanh công cụ */
  else if(e.key==='Escape'&&!$('#qp').hidden){e.preventDefault();setQP(false)}

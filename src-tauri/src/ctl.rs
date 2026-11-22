@@ -18,7 +18,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -82,6 +82,106 @@ pub fn key_msgs(code: i32) -> [u8; 28] {
     m
 }
 
+/// Nhấn rồi nhả một phím Android kèm trạng thái phím bổ trợ (Shift 0x1, Alt 0x2, Ctrl 0x1000...).
+pub fn key_meta_msgs(code: i32, meta: u32) -> [u8; 28] {
+    let mut m = [0u8; 28];
+    for (i, action) in [ACTION_DOWN, ACTION_UP].into_iter().enumerate() {
+        let o = i * 14;
+        m[o] = 0;
+        m[o + 1] = action;
+        m[o + 2..o + 6].copy_from_slice(&code.to_be_bytes());
+        // repeat = 0
+        m[o + 10..o + 14].copy_from_slice(&meta.to_be_bytes());
+    }
+    m
+}
+
+/// INJECT_TEXT (type 1): u32 độ dài + UTF-8. scrcpy giới hạn 300 byte và chỉ gõ được ký tự có trên bàn phím ảo (ASCII).
+pub fn text_msg(text: &str) -> Option<Vec<u8>> {
+    let b = text.as_bytes();
+    if b.is_empty() || b.len() > 300 {
+        return None;
+    }
+    let mut m = Vec::with_capacity(5 + b.len());
+    m.push(1);
+    m.extend_from_slice(&(b.len() as u32).to_be_bytes());
+    m.extend_from_slice(b);
+    Some(m)
+}
+
+/// Giới hạn một gói SET_CLIPBOARD của scrcpy (256 KB trừ phần header).
+const CLIP_MAX: usize = (1 << 18) - 14;
+
+/// SET_CLIPBOARD (type 9) kèm lệnh dán: u64 sequence (0 = không cần ack), u8 paste, u32 độ dài + UTF-8.
+/// Đây là cách duy nhất gõ được tiếng Việt có dấu, emoji... (INJECT_TEXT chỉ nhận ASCII).
+pub fn paste_msg(text: &str) -> Option<Vec<u8>> {
+    let b = text.as_bytes();
+    if b.is_empty() || b.len() > CLIP_MAX {
+        return None;
+    }
+    let mut m = Vec::with_capacity(14 + b.len());
+    m.push(9);
+    m.extend_from_slice(&0u64.to_be_bytes());
+    m.push(1);
+    m.extend_from_slice(&(b.len() as u32).to_be_bytes());
+    m.extend_from_slice(b);
+    Some(m)
+}
+
+/// GET_CLIPBOARD (type 8): bảo server lấy clipboard của điện thoại; `key` = 0 chỉ đọc, 1 bấm COPY rồi đọc, 2 bấm CUT rồi đọc.
+pub fn get_clipboard_msg(key: u8) -> [u8; 2] {
+    [8, key]
+}
+
+/// Tin server gửi ngược (DeviceMessage): CLIPBOARD(0) = u32 độ dài + UTF-8; ACK_CLIPBOARD(1) = u64; UHID_OUTPUT(2) = u16 id, u16 size, dữ liệu.
+#[derive(Debug, PartialEq)]
+enum DevMsg {
+    Clipboard(String),
+    Other,
+}
+
+const MAX_CLIP_IN: usize = 1 << 20;
+
+/// Đọc đúng một tin. `Ok(None)` = loại tin lạ (không biết độ dài nên không đọc tiếp được).
+fn read_dev_msg<R: Read>(r: &mut R) -> std::io::Result<Option<DevMsg>> {
+    let mut t = [0u8; 1];
+    r.read_exact(&mut t)?;
+    match t[0] {
+        0 => {
+            let mut l = [0u8; 4];
+            r.read_exact(&mut l)?;
+            let n = u32::from_be_bytes(l) as usize;
+            if n > MAX_CLIP_IN {
+                return Ok(None);
+            }
+            let mut b = vec![0u8; n];
+            r.read_exact(&mut b)?;
+            Ok(Some(DevMsg::Clipboard(String::from_utf8_lossy(&b).into_owned())))
+        }
+        1 => {
+            let mut b = [0u8; 8];
+            r.read_exact(&mut b)?;
+            Ok(Some(DevMsg::Other))
+        }
+        2 => {
+            let mut h = [0u8; 4];
+            r.read_exact(&mut h)?;
+            let mut b = vec![0u8; u16::from_be_bytes([h[2], h[3]]) as usize];
+            r.read_exact(&mut b)?;
+            Ok(Some(DevMsg::Other))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Clipboard điện thoại → máy tính: số thứ tự tin + nội dung mới nhất, kèm Condvar để chờ tin mới.
+#[derive(Default)]
+struct ClipState {
+    seq: u64,
+    text: String,
+}
+type Clip = Arc<(Mutex<ClipState>, Condvar)>;
+
 // ───────────────────────── Kênh ─────────────────────────
 
 pub struct Ctl {
@@ -91,6 +191,7 @@ pub struct Ctl {
     stream: Mutex<TcpStream>,
     alive: Arc<AtomicBool>,
     server: Mutex<Option<Child>>,
+    clip: Clip,
 }
 
 impl Ctl {
@@ -115,6 +216,57 @@ impl Ctl {
 
     pub fn key(&self, code: i32) -> bool {
         self.send(&key_msgs(code))
+    }
+
+    /// Phím kèm Ctrl/Shift/Alt (Ctrl+A, Ctrl+C...).
+    pub fn key_meta(&self, code: i32, meta: u32) -> bool {
+        self.send(&key_meta_msgs(code, meta))
+    }
+
+    /// Gửi GET_CLIPBOARD và đợi server trả clipboard (tối đa `wait`). None = không có phản hồi.
+    fn fetch_clipboard(&self, key: u8, wait: Duration) -> Option<String> {
+        let (m, cv) = &*self.clip;
+        let start = lock(m).seq;
+        if !self.send(&get_clipboard_msg(key)) {
+            return None;
+        }
+        let g = lock(m);
+        let (g, _) = cv.wait_timeout_while(g, wait, |s| s.seq == start).unwrap_or_else(|e| e.into_inner());
+        (g.seq != start).then(|| g.text.clone())
+    }
+
+    /// Chép đoạn đang chọn trên điện thoại (bấm COPY hoặc CUT) và trả nội dung để đặt vào clipboard máy tính.
+    /// Server có thể đọc clipboard trước khi COPY xong: nếu nội dung y hệt lần trước thì đợi một chút rồi đọc lại một lần.
+    pub fn copy(&self, cut: bool) -> Option<String> {
+        let before = lock(&self.clip.0).text.clone();
+        let first = self.fetch_clipboard(if cut { 2 } else { 1 }, Duration::from_millis(1500))?;
+        if first != before {
+            return Some(first);
+        }
+        thread::sleep(Duration::from_millis(120));
+        Some(self.fetch_clipboard(0, Duration::from_millis(800)).unwrap_or(first))
+    }
+
+    /// Gõ một chuỗi vào ô nhập đang focus trên điện thoại. ASCII thường → INJECT_TEXT (từng đoạn ≤300 byte);
+    /// có ký tự khác (tiếng Việt, emoji), xuống dòng hay ký tự điều khiển → đặt clipboard rồi dán.
+    pub fn text(&self, s: &str) -> bool {
+        if s.is_empty() {
+            return true;
+        }
+        if s.chars().all(|c| c.is_ascii() && !c.is_ascii_control()) {
+            let mut rest = s;
+            while !rest.is_empty() {
+                let (head, tail) = rest.split_at(rest.len().min(300)); // toàn ASCII nên cắt ở byte nào cũng hợp lệ
+                match text_msg(head) {
+                    Some(m) if self.send(&m) => {}
+                    _ => return false,
+                }
+                rest = tail;
+            }
+            true
+        } else {
+            paste_msg(s).is_some_and(|m| self.send(&m))
+        }
     }
 
     /// Đóng kết nối (server tự thoát khi mất socket điều khiển), diệt tiến trình adb và gỡ `adb forward`.
@@ -210,13 +362,33 @@ clipboard_autosync=false send_device_meta=false 2>&1"
             thread::sleep(Duration::from_millis(100));
         };
 
-        // Server có thể gửi tin ngược (clipboard…): phải đọc bỏ để socket không đầy, và biết khi nào nó đóng.
+        // Server gửi tin ngược (clipboard…): luôn phải đọc để socket không đầy, và biết khi nào nó đóng.
+        // Tin CLIPBOARD (trả lời GET_CLIPBOARD khi bấm Ctrl+C trên điện thoại) được lưu lại cho `copy`.
         let alive = Arc::new(AtomicBool::new(true));
+        let clip: Clip = Arc::new((Mutex::new(ClipState::default()), Condvar::new()));
         if let Ok(mut r) = stream.try_clone() {
             let alive = alive.clone();
+            let clip = clip.clone();
             let _ = thread::Builder::new().name("lumir-ctl-read".into()).spawn(move || {
-                let mut buf = [0u8; 4096];
-                while matches!(r.read(&mut buf), Ok(n) if n > 0) {}
+                loop {
+                    match read_dev_msg(&mut r) {
+                        Ok(Some(DevMsg::Clipboard(text))) => {
+                            let (m, cv) = &*clip;
+                            let mut g = lock(m);
+                            g.seq += 1;
+                            g.text = text;
+                            cv.notify_all();
+                        }
+                        Ok(Some(DevMsg::Other)) => {}
+                        Ok(None) => {
+                            // Loại tin không biết: bỏ phân tích nhưng vẫn xả socket cho tới khi nó đóng.
+                            let mut buf = [0u8; 4096];
+                            while matches!(r.read(&mut buf), Ok(n) if n > 0) {}
+                            break;
+                        }
+                        Err(_) => break,
+                    }
+                }
                 alive.store(false, Ordering::SeqCst);
             });
         }
@@ -227,6 +399,7 @@ clipboard_autosync=false send_device_meta=false 2>&1"
             stream: Mutex::new(stream),
             alive,
             server: Mutex::new(Some(server)),
+            clip,
         }))
     }
 }
@@ -283,5 +456,80 @@ mod tests {
     #[test]
     fn jar_is_embedded() {
         assert!(SERVER_JAR.len() > 50_000 && &SERVER_JAR[0..2] == b"PK");
+    }
+}
+
+#[cfg(test)]
+mod kbd_tests {
+    use super::*;
+
+    #[test]
+    fn key_with_meta_layout() {
+        let m = key_meta_msgs(29, 0x1000 | 0x2000);
+        assert_eq!(m[0], 0);
+        assert_eq!(m[1], ACTION_DOWN);
+        assert_eq!(&m[2..6], &29i32.to_be_bytes());
+        assert_eq!(&m[6..10], &[0, 0, 0, 0]); // repeat
+        assert_eq!(&m[10..14], &0x3000u32.to_be_bytes());
+        assert_eq!(m[15], ACTION_UP);
+        assert_eq!(&m[24..28], &0x3000u32.to_be_bytes());
+    }
+
+    #[test]
+    fn text_message_limits() {
+        let m = text_msg("abc").unwrap();
+        assert_eq!(m, vec![1, 0, 0, 0, 3, b'a', b'b', b'c']);
+        assert!(text_msg("").is_none());
+        assert!(text_msg(&"a".repeat(301)).is_none());
+        assert!(text_msg(&"a".repeat(300)).is_some());
+    }
+
+    #[test]
+    fn paste_message_layout() {
+        let m = paste_msg("Việt").unwrap();
+        assert_eq!(m[0], 9);
+        assert_eq!(&m[1..9], &[0u8; 8]); // sequence 0
+        assert_eq!(m[9], 1); // paste
+        let n = u32::from_be_bytes([m[10], m[11], m[12], m[13]]) as usize;
+        assert_eq!(n, "Việt".len());
+        assert_eq!(&m[14..], "Việt".as_bytes());
+        assert!(paste_msg("").is_none());
+    }
+}
+
+#[cfg(test)]
+mod clip_tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn get_clipboard_layout() {
+        assert_eq!(get_clipboard_msg(1), [8, 1]);
+        assert_eq!(get_clipboard_msg(2), [8, 2]);
+    }
+
+    #[test]
+    fn device_messages() {
+        let text = "Việt Nam";
+        let mut v = vec![0u8];
+        v.extend_from_slice(&(text.len() as u32).to_be_bytes());
+        v.extend_from_slice(text.as_bytes());
+        v.push(1); // ACK_CLIPBOARD
+        v.extend_from_slice(&7u64.to_be_bytes());
+        v.extend_from_slice(&[2, 0, 1, 0, 3, 9, 9, 9]); // UHID_OUTPUT id=1 size=3
+        v.push(77); // loại lạ
+        let mut r = Cursor::new(v);
+        assert_eq!(read_dev_msg(&mut r).unwrap(), Some(DevMsg::Clipboard(text.into())));
+        assert_eq!(read_dev_msg(&mut r).unwrap(), Some(DevMsg::Other));
+        assert_eq!(read_dev_msg(&mut r).unwrap(), Some(DevMsg::Other));
+        assert_eq!(read_dev_msg(&mut r).unwrap(), None);
+        assert!(read_dev_msg(&mut r).is_err()); // hết dữ liệu
+    }
+
+    #[test]
+    fn oversized_clipboard_is_rejected() {
+        let mut v = vec![0u8];
+        v.extend_from_slice(&((MAX_CLIP_IN as u32) + 1).to_be_bytes());
+        assert_eq!(read_dev_msg(&mut Cursor::new(v)).unwrap(), None);
     }
 }

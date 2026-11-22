@@ -473,6 +473,32 @@ impl Link {
         self.exec_bg(adb, &format!("input keyevent {code}"))
     }
 
+    /// Phím từ bàn phím máy tính, có thể kèm Ctrl/Shift/Alt (chỉ kênh scrcpy mang được phím bổ trợ; không có thì gửi phím trần).
+    pub fn key_meta(&self, adb: &Adb, code: u32, meta: u32) -> Result<(), String> {
+        if let Some(c) = self.ctl_ready() {
+            if c.key_meta(code as i32, meta) {
+                return Ok(());
+            }
+        }
+        self.exec_bg(adb, &format!("input keyevent {code}"))
+    }
+
+    /// Gõ chuỗi vào ô nhập trên điện thoại (cần kênh điều khiển scrcpy).
+    pub fn text(&self, s: &str) -> Result<(), String> {
+        match self.ctl_ready() {
+            Some(c) if c.text(s) => Ok(()),
+            _ => Err("Typing needs the scrcpy control channel, which is still starting. Try again in a moment.".to_string()),
+        }
+    }
+
+    /// Chép (hoặc cắt) đoạn đang chọn trên điện thoại và trả nội dung; chuỗi rỗng nếu không có gì.
+    pub fn copy(&self, cut: bool) -> Result<String, String> {
+        match self.ctl_ready() {
+            Some(c) => Ok(c.copy(cut).unwrap_or_default()),
+            None => Err("Copy needs the scrcpy control channel, which is still starting. Try again in a moment.".to_string()),
+        }
+    }
+
     fn rotation(&self, hint_landscape: bool) -> u8 {
         self.orient.get().unwrap_or(if hint_landscape { 1 } else { 0 })
     }

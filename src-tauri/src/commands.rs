@@ -277,6 +277,63 @@ pub async fn send_key(state: Shared<'_>, inputs: State<'_, Arc<Inputs>>, serial:
     .await
 }
 
+/// Phím từ bàn phím máy tính (Enter, Backspace, mũi tên, Ctrl+A/C/X/Z...). `code` là mã phím Android.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn input_key(
+    state: Shared<'_>,
+    inputs: State<'_, Arc<Inputs>>,
+    serial: String,
+    code: u32,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+) -> Result<(), String> {
+    if code == 0 || code > 400 {
+        return Err("Unknown key".to_string());
+    }
+    let st = state.inner().clone();
+    device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    let link = inputs.get(&serial).unwrap_or_else(|| inputs.start(&st, &serial));
+    // META_SHIFT_ON|LEFT, META_ALT_ON|LEFT, META_CTRL_ON|LEFT của Android.
+    let mut meta = 0u32;
+    if shift {
+        meta |= 0x1 | 0x40;
+    }
+    if alt {
+        meta |= 0x2 | 0x10;
+    }
+    if ctrl {
+        meta |= 0x1000 | 0x2000;
+    }
+    blocking(move || link.key_meta(&st.adb, code, meta)).await
+}
+
+/// Gõ chữ từ bàn phím máy tính vào ô nhập đang focus trên điện thoại (hỗ trợ cả tiếng Việt có dấu, emoji).
+/// Frontend gọi tuần tự nên thứ tự các ký tự và phím (Backspace...) được giữ nguyên.
+#[tauri::command]
+pub async fn input_text(state: Shared<'_>, inputs: State<'_, Arc<Inputs>>, serial: String, text: String) -> Result<(), String> {
+    if text.is_empty() {
+        return Ok(());
+    }
+    if text.chars().count() > 20_000 {
+        return Err("Text is too long".to_string());
+    }
+    let st = state.inner().clone();
+    device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    let link = inputs.get(&serial).unwrap_or_else(|| inputs.start(&st, &serial));
+    blocking(move || link.text(&text)).await
+}
+
+/// Ctrl+C / Ctrl+X trên điện thoại: chép (hoặc cắt) đoạn đang chọn và trả nội dung để frontend đặt vào clipboard máy tính.
+#[tauri::command]
+pub async fn input_copy(state: Shared<'_>, inputs: State<'_, Arc<Inputs>>, serial: String, cut: bool) -> Result<String, String> {
+    let st = state.inner().clone();
+    device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    let link = inputs.get(&serial).unwrap_or_else(|| inputs.start(&st, &serial));
+    blocking(move || link.copy(cut)).await
+}
+
 /// Chạm thời gian thực: phase = down | move | up, (x, y) chuẩn hoá 0..1 trên khung hình đang hiển thị.
 /// Frontend gọi tuần tự (đợi lệnh trước xong mới gửi lệnh sau) nên thứ tự down → move → up được giữ nguyên.
 #[tauri::command]
