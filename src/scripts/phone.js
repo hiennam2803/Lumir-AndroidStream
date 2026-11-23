@@ -12,7 +12,7 @@ const win=demo?null:TA.window.getCurrentWindow();
 const VI={
  'Back':'Quay lại','Home':'Màn hình chính','Recent apps':'Ứng dụng gần đây',
  'Volume up':'Tăng âm lượng','Volume down':'Giảm âm lượng','Power / screen':'Nguồn / màn hình',
- 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Key mapping':'Ánh xạ phím','Key mapping on':'Đã bật ánh xạ phím','Key mapping off':'Đã tắt ánh xạ phím','Edit layout':'Sửa bố cục','Done':'Xong','Clear':'Xoá hết','Click the screen to add a key · drag to move · right-click to delete':'Bấm lên màn hình để thêm phím · kéo để di chuyển · chuột phải để xoá','Press a key to assign…':'Nhấn một phím để gán…','Key mapping on — mapped keys tap the screen':'Ánh xạ phím đang bật — phím đã gán sẽ chạm vào màn hình','Key already used':'Phím này đã được dùng','Too many keys (max 9)':'Quá nhiều phím (tối đa 9)','Key mapping needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
+ 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Frame rate':'Tốc độ khung hình','High frame rates need a capable phone and may run warm.':'Tốc độ cao cần điện thoại đủ mạnh và có thể làm máy nóng.','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Key mapping':'Ánh xạ phím','Key mapping on':'Đã bật ánh xạ phím','Key mapping off':'Đã tắt ánh xạ phím','Edit layout':'Sửa bố cục','Done':'Xong','Clear':'Xoá hết','Click the screen to add a key · drag to move · right-click to delete':'Bấm lên màn hình để thêm phím · kéo để di chuyển · chuột phải để xoá','Press a key to assign…':'Nhấn một phím để gán…','Key mapping on — mapped keys tap the screen':'Ánh xạ phím đang bật — phím đã gán sẽ chạm vào màn hình','Key already used':'Phím này đã được dùng','Too many keys (max 9)':'Quá nhiều phím (tối đa 9)','Key mapping needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
  'Main window':'Cửa sổ chính','Minimize':'Thu nhỏ','Close':'Đóng',
  'Waiting for video stream':'Đang chờ luồng video','Retry':'Thử lại',
  'Video decoding is not supported on this system.':'Hệ thống này không hỗ trợ giải mã video.',
@@ -153,8 +153,8 @@ function openDecoder(c){
 }
 let winLand=null;   /* cửa sổ đang ở tỉ lệ ngang (true) hay dọc (false); null = chưa biết */
 /* Khung dồn cục (sau khi đường truyền nghẽn rồi nhả một loạt): chỉ giữ MỘT khung mới nhất chờ vẽ ở nhịp rAF kế tiếp,
-   thay vì vẽ lần lượt hàng chục khung liền (hình chạy bù như tua nhanh). Khung bình thường (cách lần vẽ trước ≥ BURST_GAP) vẫn vẽ ngay. */
-const BURST_GAP=8;   /* ms */
+   thay vì vẽ lần lượt hàng chục khung liền (hình chạy bù như tua nhanh). Khung bình thường (cách lần vẽ trước ≥ burstGap()) vẫn vẽ ngay. */
+const burstGap=()=>Math.max(2,Math.min(8,500/(q.fps||60)));   /* ms: nửa khoảng cách giữa hai khung (60 fps → 8, 120 fps → ~4) */
 let pendFrame=null,pendRaf=0,lastDraw=0;
 function dropPending(){
  if(pendFrame){try{pendFrame.close()}catch(_){}pendFrame=null}
@@ -164,7 +164,7 @@ function flushPending(){pendRaf=0;const f=pendFrame;pendFrame=null;if(f)paintFra
 function drawFrame(f){
  if(window.LumirPerf)window.LumirPerf.decoderOutput();
  if(pendFrame){try{pendFrame.close()}catch(_){}pendFrame=f;if(window.LumirPerf)window.LumirPerf.coalesced();return}   /* đã có khung chờ: khung mới hơn thay thế */
- if(performance.now()-lastDraw>=BURST_GAP){paintFrame(f);return}
+ if(performance.now()-lastDraw>=burstGap()){paintFrame(f);return}
  pendFrame=f;pendRaf=requestAnimationFrame(flushPending);
 }
 function paintFrame(f){
@@ -210,7 +210,7 @@ async function startStream(keep){
  vctx=vctx||$('#vid').getContext('2d',{alpha:false,desynchronized:true});
  const c=new TA.core.Channel();ch=c;c.onmessage=m=>{if(ch===c)onPacket(m)};
  setStatus('Waiting for video stream',false);
- try{await call('start_stream',{serial,onFrame:c,maxSide:q.side,bitRateMbps:q.mbps})}catch(e){if(ch===c)streamError(T(String(e)))}
+ try{await call('start_stream',{serial,onFrame:c,maxSide:q.side,bitRateMbps:q.mbps,fps:q.fps})}catch(e){if(ch===c)streamError(T(String(e)))}
 }
 /* remote: báo Rust dừng adb · keep: giữ khung hình cuối (khi mất kết nối, lớp phủ đã che) */
 function stopStream(remote,keep){
@@ -267,12 +267,14 @@ const PRESETS={
  sharp:{side:1920,mbps:16,d:'Full detail, needs a good cable'},
  custom:{d:'Set resolution and bitrate yourself'}
 };
-let q={mode:'balanced',side:1280,mbps:8};
+const FPS_OPTS=[30,60,90,120];
+let q={mode:'balanced',side:1280,mbps:8,fps:60};
 function loadQ(){
  try{const v=JSON.parse(localStorage.getItem('lumir-q')||'{}');
   if(PRESETS[v.mode])q.mode=v.mode;
   if(v.side>=320&&v.side<=2560)q.side=v.side|0;
-  if(v.mbps>=1&&v.mbps<=32)q.mbps=v.mbps|0;}catch(_){}
+  if(v.mbps>=1&&v.mbps<=32)q.mbps=v.mbps|0;
+  if(FPS_OPTS.includes(v.fps))q.fps=v.fps;}catch(_){}
  const p=PRESETS[q.mode];if(p.side){q.side=p.side;q.mbps=p.mbps}
 }
 function saveQ(){try{localStorage.setItem('lumir-q',JSON.stringify(q))}catch(_){}}
@@ -282,6 +284,9 @@ function renderQ(){
  $('#qpC').hidden=q.mode!=='custom';
  $('#qpRes').value=q.side;$('#qpBr').value=q.mbps;
  $('#qpResV').textContent=q.side+' px';$('#qpBrV').textContent=q.mbps+' Mbps';
+ $$('#qpFps button').forEach(b=>b.classList.toggle('on',+b.dataset.f===q.fps));
+ $('#qpFpsV').textContent=q.fps+' fps';
+ $('#qpFpsN').textContent=q.fps>60?T('High frame rates need a capable phone and may run warm.'):'';
 }
 function applyQ(){saveQ();renderQ();if(connected&&!demo)startStream(true)}
 function setQP(on){
@@ -295,6 +300,10 @@ $('#qpSeg').addEventListener('click',e=>{
 });
 $('#qpRes').addEventListener('input',e=>{q.side=+e.target.value;$('#qpResV').textContent=q.side+' px'});
 $('#qpBr').addEventListener('input',e=>{q.mbps=+e.target.value;$('#qpBrV').textContent=q.mbps+' Mbps'});
+$('#qpFps').addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b||+b.dataset.f===q.fps)return;
+ q.fps=+b.dataset.f;applyQ();
+});
 $('#qpRes').addEventListener('change',applyQ);
 $('#qpBr').addEventListener('change',applyQ);
 /* ── Chuột → cảm ứng thời gian thực ──

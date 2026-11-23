@@ -53,8 +53,8 @@ fn server_cmd(scid: u32, q: Quality) -> String {
         "CLASSPATH={REMOTE_JAR} app_process / com.genymobile.scrcpy.Server {SERVER_VERSION} scid={scid:08x} \
 log_level=info video=true audio=false control=false tunnel_forward=true cleanup=false power_on=false \
 clipboard_autosync=false send_device_meta=false send_codec_meta=true send_frame_meta=true \
-video_codec=h264 max_size={} video_bit_rate={} max_fps=60 video_codec_options={CODEC_OPTIONS} 2>&1",
-        q.max_side, q.bit_rate
+video_codec=h264 max_size={} video_bit_rate={} max_fps={} video_codec_options={CODEC_OPTIONS} 2>&1",
+        q.max_side, q.bit_rate, q.fps
     )
 }
 
@@ -350,11 +350,18 @@ mod tests {
 
     #[test]
     fn command_has_video_only_flags() {
-        let c = server_cmd(0x1234, Quality::new(Some(720), Some(4)));
+        let c = server_cmd(0x1234, Quality::new(Some(720), Some(4), None));
         assert!(c.contains("video=true audio=false control=false"));
-        assert!(c.contains("max_size=720 video_bit_rate=4000000"));
+        assert!(c.contains("max_size=720 video_bit_rate=4000000 max_fps=60"));
         assert!(c.contains("scid=00001234"));
         assert!(c.ends_with("2>&1"));
+    }
+
+    #[test]
+    fn command_uses_requested_fps() {
+        let c = server_cmd(0x1234, Quality::new(Some(1280), Some(8), Some(120)));
+        assert!(c.contains("max_fps=120"));
+        assert!(!c.contains("max_fps=60"));
     }
 
     #[test]

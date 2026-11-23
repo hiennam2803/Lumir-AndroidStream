@@ -42,6 +42,8 @@ pub struct Quality {
     pub max_side: u32,
     /// Bitrate (bit/giây).
     pub bit_rate: u32,
+    /// Trần số khung/giây của scrcpy-server (`max_fps`). Đường dự phòng screenrecord không có tuỳ chọn này.
+    pub fps: u32,
 }
 
 impl Quality {
@@ -49,14 +51,18 @@ impl Quality {
     pub const MAX_SIDE: u32 = 2560;
     pub const MIN_RATE: u32 = 500_000;
     pub const MAX_RATE: u32 = 32_000_000;
+    pub const MIN_FPS: u32 = 15;
+    pub const MAX_FPS: u32 = 120;
+    pub const DEFAULT_FPS: u32 = 60;
 
-    /// Giá trị từ frontend (cạnh dài, Mbps); thiếu thì dùng mức Cân bằng. Luôn kẹp trong khoảng an toàn.
-    pub fn new(max_side: Option<u32>, mbps: Option<u32>) -> Quality {
+    /// Giá trị từ frontend (cạnh dài, Mbps, fps); thiếu thì dùng mức Cân bằng / 60 fps. Luôn kẹp trong khoảng an toàn.
+    pub fn new(max_side: Option<u32>, mbps: Option<u32>, fps: Option<u32>) -> Quality {
         Quality {
             max_side: max_side.unwrap_or(1280).clamp(Self::MIN_SIDE, Self::MAX_SIDE),
             bit_rate: mbps
                 .map_or(8_000_000, |m| m.saturating_mul(1_000_000))
                 .clamp(Self::MIN_RATE, Self::MAX_RATE),
+            fps: fps.unwrap_or(Self::DEFAULT_FPS).clamp(Self::MIN_FPS, Self::MAX_FPS),
         }
     }
 }
@@ -376,9 +382,9 @@ mod tests {
 
     #[test]
     fn quality_is_clamped() {
-        assert_eq!(Quality::new(None, None), Quality { max_side: 1280, bit_rate: 8_000_000 });
-        assert_eq!(Quality::new(Some(10), Some(0)), Quality { max_side: 320, bit_rate: 500_000 });
-        assert_eq!(Quality::new(Some(99999), Some(u32::MAX)), Quality { max_side: 2560, bit_rate: 32_000_000 });
-        assert_eq!(Quality::new(Some(720), Some(4)), Quality { max_side: 720, bit_rate: 4_000_000 });
+        assert_eq!(Quality::new(None, None, None), Quality { max_side: 1280, bit_rate: 8_000_000, fps: 60 });
+        assert_eq!(Quality::new(Some(10), Some(0), Some(0)), Quality { max_side: 320, bit_rate: 500_000, fps: 15 });
+        assert_eq!(Quality::new(Some(99999), Some(u32::MAX), Some(u32::MAX)), Quality { max_side: 2560, bit_rate: 32_000_000, fps: 120 });
+        assert_eq!(Quality::new(Some(720), Some(4), Some(90)), Quality { max_side: 720, bit_rate: 4_000_000, fps: 90 });
     }
 }

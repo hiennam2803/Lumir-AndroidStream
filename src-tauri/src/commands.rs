@@ -466,6 +466,7 @@ pub async fn start_stream(
     on_frame: Channel<InvokeResponseBody>,
     max_side: Option<u32>,
     bit_rate_mbps: Option<u32>,
+    fps: Option<u32>,
 ) -> Result<(), String> {
     let st = state.inner().clone();
     if st.phone_serial(window.label()).as_deref() != Some(serial.as_str()) {
@@ -475,7 +476,7 @@ pub async fn start_stream(
         return Err(device::MSG_NOT_CONNECTED.into());
     }
     let link = inputs.start(&st, &serial); // phiên shell + theo dõi xoay + dò màn hình cảm ứng (chạy nền)
-    streams.start(window.label(), st, serial, on_frame, link, Quality::new(max_side, bit_rate_mbps));
+    streams.start(window.label(), st, serial, on_frame, link, Quality::new(max_side, bit_rate_mbps, fps));
     Ok(())
 }
 
