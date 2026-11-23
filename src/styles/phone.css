@@ -150,3 +150,15 @@ body.rail-hidden .perf-panel,html.is-fullscreen .perf-panel{right:8px;width:min(
 .perf-chart-title{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:600}
 .perf-chart{width:100%;height:66px;overflow:visible}.perf-chart line{stroke:var(--bd);stroke-width:1;stroke-dasharray:3 3}.perf-chart polyline{fill:none;stroke:var(--ac);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .perf-note{font-size:9px;line-height:1.45;color:var(--tx2)}
+/* Bảng PERF nhiều chỉ số hơn: cuộn khi cửa sổ thấp */
+.perf-panel{max-height:calc(100vh - 52px);overflow-y:auto}
+.perf-metric b{font-size:15px;white-space:nowrap}
+/* Popup di chuyển + phóng/thu (popups.js) */
+.pz-handle{cursor:grab;touch-action:none}
+.pz-moving .pz-handle,.pz-moving{cursor:grabbing}
+.pz-moving{user-select:none;transition:none!important}
+.pz-grip{position:absolute;right:0;bottom:0;width:14px;height:14px;display:grid;place-items:center;cursor:nwse-resize;touch-action:none;opacity:.45;transition:opacity .12s;z-index:5}
+.pz-grip:hover,.pz-moving .pz-grip{opacity:1}
+.pz-grip svg{width:11px;height:11px;fill:none;stroke:var(--tx2);stroke-width:1.4;stroke-linecap:round}
+/* Trong khung cuộn (bảng PERF): dính ở đáy vùng nhìn thấy thay vì cuộn theo nội dung */
+.pz-grip.sticky{position:sticky;bottom:-6px;align-self:flex-end;flex:none;margin:-6px -6px -6px 0}

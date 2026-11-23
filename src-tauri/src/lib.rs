@@ -1,4 +1,5 @@
 //! LUMIR — Phase 2: kết nối USB thật (ADB) + truyền hình ảnh màn hình (screenrecord H.264 → WebCodecs).
+//! Game Key Mapping: lưu JSON riêng nhiều profile (keymap.rs), chạm đa điểm qua touch_pointer (+ nhả ngón an toàn).
 //! Điều khiển: phím điều hướng + chạm/vuốt/cuộn bằng chuột (evdev thời gian thực), tự xoay theo máy; chưa có bàn phím; LAN: bước 1 = kết nối bằng `adb connect IP:cổng` (chưa có ghép nối bằng mã).
 
 mod adb;
@@ -7,6 +8,7 @@ mod ctl;
 mod device;
 mod h264;
 mod input;
+mod keymap;
 mod scvideo;
 mod stream;
 
@@ -37,6 +39,10 @@ pub fn run() {
             app.manage(state.clone());
             app.manage(Arc::new(stream::Streams::default()));
             app.manage(Arc::new(input::Inputs::default()));
+            // Game Key Mapping: một file JSON riêng trong thư mục dữ liệu của app (%APPDATA%\\com.lumir.desktop trên Windows).
+            let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("lumir"));
+            let export_dir = app.path().download_dir().unwrap_or_else(|_| data_dir.join("exports"));
+            app.manage(Arc::new(keymap::KeymapStore::new(data_dir, export_dir)));
             commands::spawn_poller(app.handle().clone(), state);
             Ok(())
         })
@@ -55,6 +61,11 @@ pub fn run() {
             commands::input_text,
             commands::input_copy,
             commands::touch_pointer,
+            commands::touch_release_all,
+            commands::foreground_app,
+            keymap::keymap_load,
+            keymap::keymap_save,
+            keymap::keymap_export,
             commands::touch_event,
             commands::touch_scroll,
             commands::fit_phone_window,
@@ -63,6 +74,7 @@ pub fn run() {
             commands::set_always_on_top,
             commands::set_fullscreen,
             commands::focus_main_window,
+            commands::ping,
         ])
         .run(tauri::generate_context!())
         .expect("không thể khởi chạy ứng dụng LUMIR");

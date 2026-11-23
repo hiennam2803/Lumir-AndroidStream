@@ -37,6 +37,30 @@ Giới hạn đã biết: xoay ngang màn hình điện thoại thì hình bị 
 
 Test phần tách H.264: `rustc --test src-tauri/src/h264.rs -o h264test && ./h264test` (hoặc `cargo test` trong `src-tauri`).
 
+## Game Key Mapping (chơi game bằng bàn phím máy tính)
+
+Nút **gamepad** trên thanh dọc (tách hẳn khỏi nút **keyboard** = Chat Keyboard, chỉ để gõ chữ). Hai hệ thống có module, state và sự kiện riêng; chúng dùng chung bàn phím vật lý nên không chạy cùng lúc (bật cái này thì cái kia tắt; đang sửa mapping thì không bật được Chat Keyboard).
+
+**Dùng:** bấm nút gamepad → chế độ chỉnh sửa (màn hình tối ~25%, bảng công cụ kéo/thu gọn được) → thêm điều khiển, kéo để di chuyển, kéo chấm nhỏ ở mép để đổi cỡ, chọn rồi gán phím (bấm ô phím → nhấn phím), `Delete` để xoá → **Save** (lưu, ở lại) · **Done** (lưu + chơi) · **Cancel** (bỏ thay đổi). Khi chơi có thanh nhỏ phía trên: đổi profile, **Sửa**, **Dừng**.
+
+| Loại | Hành vi |
+|---|---|
+| Circular Joystick | 8 hướng, mặc định WASD (gán lại được). Chạm xuống ở tâm rồi trượt mượt tới hướng giữ; chéo chuẩn hoá (không nhanh hơn); A+D triệt tiêu nhau |
+| Directional Joystick | 4 nút W/A/S/D rời nhau, mỗi nút kéo/đổi cỡ độc lập; nhấn 2 nút = 2 ngón = đi chéo |
+| Custom Button | Phím bất kỳ, đặt tên, kích thước, vị trí; nhấn = chạm, giữ = giữ, thả = nhấc |
+
+Phím dành cho cửa sổ nên không gán được: `F3`, `F11`, `Escape`, phím Windows. Mỗi phím chỉ thuộc một ô trong một profile. Tối đa 9 ngón cùng lúc (1 ngón dành cho chuột); quá thì lần nhấn đó bị bỏ qua.
+
+**Profile:** tạo / đặt tên / đổi tên / nhân bản / xoá; mỗi profile lưu nền tảng (Android, máy, độ phân giải, hướng), danh sách điều khiển, loại, phím, toạ độ, kích thước, và game gắn kèm (nút ⌖ nhận diện game đang chạy qua `dumpsys window`; mở lại thì tự chọn profile theo game, tắt được). **⋯ → Import / Export** JSON (xuất ra thư mục Tải xuống; nhập bằng hộp chọn file).
+
+**Lưu trữ:** `keymap.json` riêng trong thư mục dữ liệu của app (Windows: `%APPDATA%\com.lumir.desktop\`), nhiều profile, toạ độ chuẩn hoá 0–1 trên khung hình, kích thước = đường kính / cạnh ngắn của khung → vị trí không đổi khi đổi độ phân giải hay cỡ cửa sổ. Ghi nguyên tử (file tạm → `.bak` → đổi tên); file hỏng được giữ lại thành `keymap.corrupt-<giờ>.json` và khôi phục từ `.bak`. Lưu ở cửa sổ này thì cửa sổ điện thoại khác tự nạp lại.
+
+**An toàn ngón chạm:** thoát chế độ chơi, mất focus, ẩn/thu nhỏ cửa sổ, rút cáp, đóng cửa sổ → nhả hết phím và ngón. Phía Rust (`input.rs::PointerTracker`) theo dõi các ngón đang giữ: nhả được tất cả (`touch_release_all`, cả khi `Link` bị huỷ) và bỏ các lệnh Move/Up tới muộn — thứ nếu lọt vào scrcpy-server sẽ tạo "ngón ma" kẹt trên màn hình.
+
+**Giới hạn:** cần kênh điều khiển scrcpy (đa điểm chạm không có đường dự phòng `input`/evdev); hết bể 9 ngón thì bỏ lần nhấn; profile không tự quy đổi khi xoay máy (cảnh báo hướng ở bảng; xoay máy giữa chừng thì nhả hết); bảng công cụ khá rộng so với cửa sổ điện thoại dọc nhỏ — kéo đi hoặc thu gọn.
+
+**Kiểm thử:** `npm run test:core` (Node: schema, profile, xung đột phím, engine nhấn/giữ/thả đa điểm + fuzz bất biến) · `npm run test:e2e` (Playwright + Chromium, mock Tauri) · `npm run test:rust` (`cargo test`: lưu JSON/phục hồi, `PointerTracker`, phân tích `dumpsys`, command qua mock IPC).
+
 ## Build bộ cài
 
 ```
@@ -54,6 +78,9 @@ src/                     frontend (không cần Vite, được đóng gói thẳ
   styles/fonts.css       @font-face Inter (cục bộ)
   styles/tauri.css       override chỉ áp dụng trong Tauri
   scripts/main.js        JS gốc (sửa 2 dòng lỗi: $$ và regex IP)
+  scripts/keymap-core.js  Game Key Mapping: schema, profile, engine (thuần, có test)
+  scripts/keymap.js       Game Key Mapping: giao diện chỉnh sửa, chế độ chơi, lưu/nạp
+  styles/keymap.css       Game Key Mapping
   scripts/phone.js  cửa sổ điện thoại: giải mã WebCodecs, vẽ canvas, nút điều hướng
   scripts/tauri-bridge.js  kéo cửa sổ, Thu nhỏ, Phóng to, Đóng
   assets/fonts/          Inter Variable (latin, latin-ext, vietnamese)
@@ -61,6 +88,7 @@ src-tauri/
   src/main.rs, src/lib.rs
   src/adb.rs        chạy adb (timeout), phân tích đầu ra
   src/device.rs     registry thiết bị + máy trạng thái kết nối (có unit test)
+  src/keymap.rs     Game Key Mapping: keymap.json (ghi nguyên tử, phục hồi), xuất file, nhận diện game
   src/commands.rs   Tauri command, event, luồng quét thiết bị, start_stream/stop_stream
   src/stream.rs     chạy screenrecord, gửi khung H.264 qua Channel
   src/h264.rs       tách NAL / ghép khung / tính --size (có unit test)

@@ -16,6 +16,10 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[dev-dependencies]
+# Mock runtime để test command Tauri qua IPC (chỉ khi `cargo test`, không vào bản build).
+tauri = { version = "2", features = ["test"] }
+
 [profile.release]
 codegen-units = 1
 lto = true

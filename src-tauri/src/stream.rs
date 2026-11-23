@@ -30,6 +30,8 @@ pub const K_KEY: u8 = 1;
 pub const K_ERROR: u8 = 2;
 pub const K_RESTART: u8 = 3;
 pub const K_ROTATE: u8 = 4;
+/// Số liệu chẩn đoán (scvideo::WinStats) gửi kèm luồng mỗi ~1 giây; WebView không giải mã gói này.
+pub const K_STATS: u8 = 5;
 
 /// Chất lượng video do người dùng chọn (Mượt / Cân bằng / Sắc nét / Tuỳ chỉnh).
 /// screenrecord không có tuỳ chọn FPS (nó xuất khung theo mỗi lần màn hình thay đổi), nên FPS cao đạt được

@@ -39,9 +39,9 @@ const P={
  full:'<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
  gauge:'<path d="M4.5 17a8 8 0 1115 0"/><path d="M12 17l3.5-5"/>',
  perf:'<path d="M3.5 13h4l2.5-6 4 11 2.5-5h4"/>',
- kbd:'<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10.5h.01M10.5 10.5h.01M14 10.5h.01M17.5 10.5h.01M7.5 14h9"/>',
+ kbd:'<path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
  unfull:'<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
- keys:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
+ keys:'<line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/>',
  main:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 9.5h17"/>',
  min:'<path d="M6 12h12"/>',
  x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'
@@ -62,8 +62,8 @@ const RAIL=[
  {t:'full',i:'full',l:'Full screen'},
  {t:'qual',i:'gauge',l:'Video quality'},
  {t:'perf',i:'perf',l:'Performance'},
- {t:'kbd',i:'kbd',l:'Type with PC keyboard'},
- {t:'map',i:'keys',l:'Key mapping'},
+ {t:'kbd',i:'kbd',l:'Chat keyboard'},
+ {t:'map',i:'keys',l:'Game Key Mapping'},
  {t:'sp'},
  {t:'main',i:'main',l:'Main window'}
 ];
@@ -99,6 +99,7 @@ function setDevice(d){
  $('#ttl').textContent='LUMIR · '+name;
  document.title='LUMIR — '+name;
  $('#top').classList.toggle('off',!connected);
+ window.dispatchEvent(new CustomEvent('lumir:device',{detail:{connected}}));
  $('#ovl').hidden=connected;
  $$('.rb[data-t=key]').forEach(b=>b.disabled=!connected);
  const a=parseRes(dev&&dev.resolution);if(a&&!live)ar=a;
@@ -119,7 +120,7 @@ function fit(){
 
 /* ── Video: Rust gửi gói nhị phân [loại][dữ liệu H.264 Annex-B]; ở đây giải mã bằng WebCodecs rồi vẽ lên canvas ──
    loại: 0 = khung P · 1 = khung IDR (có SPS/PPS) · 2 = lỗi (văn bản) · 3 = đang nối lại (screenrecord tự dừng sau 180 giây) · 4 = máy vừa xoay (luồng mới khác kích thước) */
-const K_DELTA=0,K_KEY=1,K_ERROR=2,K_RESTART=3,K_ROTATE=4;
+const K_DELTA=0,K_KEY=1,K_ERROR=2,K_RESTART=3,K_ROTATE=4,K_STATS=5;
 let ch=null,dec=null,codec='',needKey=true,ts=0,vctx=null,retryAt=0,retries=0;
 
 function setLive(on){live=on;$('#phone').classList.toggle('live',on)}
@@ -141,7 +142,7 @@ function spsCodec(u8){
  }
  return null;
 }
-function closeDecoder(){if(dec&&dec.state!=='closed')try{dec.close()}catch(_){}dec=null;codec=''}
+function closeDecoder(){dropPending();if(dec&&dec.state!=='closed')try{dec.close()}catch(_){}dec=null;codec='';if(window.LumirPerf)window.LumirPerf.resetPending()}
 function openDecoder(c){
  closeDecoder();
  dec=new VideoDecoder({output:drawFrame,error:e=>{if(window.LumirPerf)window.LumirPerf.decoderError();console.warn('VideoDecoder',e);recover()}});
@@ -151,9 +152,24 @@ function openDecoder(c){
  codec=c;needKey=true;
 }
 let winLand=null;   /* cửa sổ đang ở tỉ lệ ngang (true) hay dọc (false); null = chưa biết */
+/* Khung dồn cục (sau khi đường truyền nghẽn rồi nhả một loạt): chỉ giữ MỘT khung mới nhất chờ vẽ ở nhịp rAF kế tiếp,
+   thay vì vẽ lần lượt hàng chục khung liền (hình chạy bù như tua nhanh). Khung bình thường (cách lần vẽ trước ≥ BURST_GAP) vẫn vẽ ngay. */
+const BURST_GAP=8;   /* ms */
+let pendFrame=null,pendRaf=0,lastDraw=0;
+function dropPending(){
+ if(pendFrame){try{pendFrame.close()}catch(_){}pendFrame=null}
+ if(pendRaf){cancelAnimationFrame(pendRaf);pendRaf=0}
+}
+function flushPending(){pendRaf=0;const f=pendFrame;pendFrame=null;if(f)paintFrame(f)}
 function drawFrame(f){
- const perfDrawStart=window.LumirPerf?window.LumirPerf.renderStart():0;
  if(window.LumirPerf)window.LumirPerf.decoderOutput();
+ if(pendFrame){try{pendFrame.close()}catch(_){}pendFrame=f;if(window.LumirPerf)window.LumirPerf.coalesced();return}   /* đã có khung chờ: khung mới hơn thay thế */
+ if(performance.now()-lastDraw>=BURST_GAP){paintFrame(f);return}
+ pendFrame=f;pendRaf=requestAnimationFrame(flushPending);
+}
+function paintFrame(f){
+ const perfDrawStart=window.LumirPerf?window.LumirPerf.renderStart():0;
+ lastDraw=performance.now();
  if(cv.width!==f.displayWidth||cv.height!==f.displayHeight){
   cv.width=f.displayWidth;cv.height=f.displayHeight;ar=cv.width/cv.height;fit();
   const land=cv.width>cv.height;                      /* máy xoay ngang/dọc → cửa sổ xoay theo */
@@ -169,14 +185,15 @@ function onPacket(m){
  if(u.length<1)return;
  const k=u[0],p=u.subarray(1);
  if((k===K_KEY||k===K_DELTA)&&window.LumirPerf)window.LumirPerf.packet(u.length);
+ if(k===K_STATS){if(window.LumirPerf&&p.length>=24)window.LumirPerf.rustStats(p);return}   /* số liệu chẩn đoán từ Rust, không phải khung hình */
  if(k===K_ERROR){streamError(new TextDecoder().decode(p));return}
  if(k===K_ROTATE){closeDecoder();needKey=true;return}   /* kích thước đổi: mở lại bộ giải mã ở IDR kế tiếp */
  if(k===K_RESTART){needKey=true;return}            /* giữ nguyên hình cũ, chờ IDR của lượt mới */
  if(k===K_KEY){const c=spsCodec(p);if(c&&c!==codec)openDecoder(c)}
- if(!dec||dec.state==='closed'||(needKey&&k!==K_KEY))return;
+ if(!dec||dec.state==='closed'||(needKey&&k!==K_KEY)){if(window.LumirPerf)window.LumirPerf.packetDropped();return}
  needKey=false;
  try{dec.decode(new EncodedVideoChunk({type:k===K_KEY?'key':'delta',timestamp:ts,data:p}));if(window.LumirPerf)window.LumirPerf.decodeSubmitted();ts+=16667}
- catch(e){console.warn('decode',e);recover()}
+ catch(e){if(window.LumirPerf)window.LumirPerf.packetDropped();console.warn('decode',e);recover()}
 }
 /* Giải mã lỗi (khung hỏng): khởi động lại luồng để có IDR mới, tối đa 4 lần liên tiếp */
 function recover(){
@@ -355,7 +372,7 @@ document.addEventListener('click',e=>{
   else if(t==='perf'){if(window.LumirPerf)window.LumirPerf.toggle()}
   else if(t==='main')toMain();
   else if(t==='kbd')setKbd(!kbd);
-  else if(t==='map'){const k=KMAP();if(k)k.set(!k.on)}
+  else if(t==='map'){const k=KMAP();if(k)k.toggle()}
   return}
  if(e.target.closest('#bRetry')){retries=0;startStream()}
  else if(e.target.closest('#bOvlMain'))toMain();
@@ -428,6 +445,7 @@ function kbMake(){
 }
 function setKbd(on){
  if(on===kbd)return;
+ if(on&&KMAP()&&KMAP().editing){toast(T('Finish editing the key mapping first'));return}
  if(on&&kmActive())KMAP().set(false);   /* gõ chữ và ánh xạ phím không dùng cùng lúc */
  kbd=on;
  const b=$('.rb[data-t=kbd]');if(b){b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))}
@@ -463,6 +481,6 @@ async function init(){
  setPin(pinned,false);
 }
 /* API cho scripts/keymap.js (file này nằm trong IIFE nên các biến của nó không tự lộ ra ngoài) */
-window.LumirPhone={call,toast,T,VI,$,cv,demo,landscape,kbErr,setKbd,get serial(){return serial},get kbd(){return kbd}};
+window.LumirPhone={call,toast,T,VI,$,cv,demo,landscape,kbErr,setKbd,get serial(){return serial},get kbd(){return kbd},get connected(){return connected},get device(){return dev}};
 init();
 })();

@@ -1,0 +1,153 @@
+/* Game Key Mapping — tách riêng khỏi phone.css; mọi lớp đều có tiền tố gk- để không đụng Chat Keyboard hay phần còn lại. */
+
+/* ── Lớp phủ trên màn hình stream (nằm trong .phone) ── */
+.gk{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .22s ease;--u:400px;overflow:hidden}
+.gk.on{opacity:1}
+.gk[hidden]{display:none}
+/* Chế độ chỉnh sửa: tối nhẹ ~25% — vẫn nhìn rõ nội dung game bên dưới */
+.gk-shade{position:absolute;inset:0;background:rgba(0,0,0,.25);opacity:0;transition:opacity .22s ease}
+.gk[data-mode=edit] .gk-shade{opacity:1;pointer-events:auto;cursor:default}
+.gk-ctls{position:absolute;inset:0}
+
+.gk-c{position:absolute;width:calc(var(--u)*var(--sz));height:calc(var(--u)*var(--sz));transform:translate(-50%,-50%);
+  display:grid;place-items:center;border-radius:50%;touch-action:none;user-select:none;
+  --ink:rgba(255,255,255,.92);color:var(--ink);animation:gk-pop .26s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes gk-pop{from{opacity:0;scale:.6}to{opacity:1;scale:1}}
+.gk-c>*{pointer-events:none}
+.gk-body{position:absolute;inset:0;border-radius:50%;border:2px solid var(--ink);background:rgba(255,255,255,.12);
+  box-shadow:0 2px 10px rgba(0,0,0,.35);transition:background .08s,border-color .12s,box-shadow .12s,scale .08s}
+.gk-kl{position:relative;font:700 calc(var(--u)*var(--sz)*.32)/1 Inter,"Segoe UI",system-ui,sans-serif;max-width:92%;overflow:hidden;text-overflow:clip;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.gk-kl.long{font-size:calc(var(--u)*var(--sz)*.2)}
+.gk-kl.none{opacity:.55}
+.gk-nm{position:absolute;top:calc(100% + 3px);left:50%;transform:translateX(-50%);font:600 11px/1.1 Inter,"Segoe UI",system-ui,sans-serif;
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.8);padding:1px 5px;border-radius:6px;background:rgba(0,0,0,.35)}
+
+/* Joystick tròn: vòng + núm + 4 phím hướng */
+.gk-joy .gk-body{background:radial-gradient(circle,rgba(255,255,255,.04) 40%,rgba(255,255,255,.14) 100%);border-style:solid}
+.gk-knob{position:absolute;left:50%;top:50%;width:38%;height:38%;margin:-19% 0 0 -19%;border-radius:50%;
+  background:rgba(255,255,255,.35);border:2px solid var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.45);
+  transform:translate(calc(var(--kx,0)*var(--u)*var(--sz)*.4),calc(var(--ky,0)*var(--u)*var(--sz)*.4))}
+.gk-jk{position:absolute;font:700 calc(var(--u)*var(--sz)*.1)/1 Inter,"Segoe UI",system-ui,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.7);opacity:.95;transition:color .08s,scale .08s}
+.gk-jk.u{top:7%;left:50%;translate:-50% 0}.gk-jk.d{bottom:7%;left:50%;translate:-50% 0}
+.gk-jk.l{left:8%;top:50%;translate:0 -50%}.gk-jk.r{right:8%;top:50%;translate:0 -50%}
+.gk-jk.on{color:var(--ac);scale:1.25}
+.gk-jk.none{opacity:.4}
+
+/* Chọn / đang nhấn */
+.gk-c.sel{--ink:var(--ac)}
+.gk-c.sel .gk-body{box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 35%,transparent),0 2px 10px rgba(0,0,0,.35);background:color-mix(in srgb,var(--ac) 16%,rgba(255,255,255,.1))}
+.gk-c.grp:not(.sel) .gk-body{border-style:dashed}
+.gk-c.down .gk-body{background:color-mix(in srgb,var(--ac) 55%,transparent);border-color:var(--ac);scale:.92;box-shadow:0 0 14px color-mix(in srgb,var(--ac) 70%,transparent)}
+.gk-c.down{--ink:#fff}
+
+/* Tay nắm đổi kích thước (chỉ khi chỉnh sửa) */
+.gk-rz{display:none;position:absolute;right:6.5%;bottom:6.5%;width:14px;height:14px;margin:0 -7px -7px 0;border-radius:50%;background:var(--ac);border:2px solid #fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.6);cursor:nwse-resize;pointer-events:auto!important}
+.gk[data-mode=edit] .gk-c.sel .gk-rz{display:block}
+.gk[data-mode=edit] .gk-c{pointer-events:auto;cursor:grab}
+.gk[data-mode=edit] .gk-c.dragging{cursor:grabbing}
+.gk[data-mode=edit] .gk-c.dragging .gk-body{scale:1.04}
+
+/* Chơi: chỉ là gợi ý mờ; tắt gợi ý thì ẩn hẳn (nút vẫn sáng lên khi nhấn) */
+.gk[data-mode=play] .gk-c{opacity:.5;animation:none}
+.gk[data-mode=play] .gk-c.down{opacity:1}
+.gk[data-mode=play]:not(.hints) .gk-c:not(.down){opacity:0}
+.gk[data-mode=play] .gk-nm{display:none}
+.gk[data-mode=play] .gk-rz{display:none!important}
+
+/* Thanh nhỏ khi đang chơi: tên profile + Sửa + Dừng */
+.gk-hud{position:absolute;top:6px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:2px;padding:3px;border-radius:999px;
+  background:rgba(13,17,23,.72);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.14);pointer-events:auto;opacity:.5;transition:opacity .18s;max-width:calc(100% - 16px)}
+.gk-hud:hover,.gk-hud:focus-within{opacity:1}
+.gk[data-mode=play] .gk-hud{display:flex}
+.gk-hud select{max-width:130px;height:24px;border:0;background:transparent;color:#E9EFF5;font:600 11px Inter,"Segoe UI",system-ui,sans-serif;padding:0 4px;cursor:pointer;outline:none;text-overflow:ellipsis}
+.gk-hud select option{color:#151B23}
+.gk-hud button{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#E9EFF5;display:grid;place-items:center;cursor:pointer;transition:background .12s}
+.gk-hud button:hover{background:rgba(255,255,255,.18)}
+.gk-hud button.stop:hover{background:var(--err)}
+.gk-hud svg{width:13px;height:13px}
+.gk-hud .eye.off{color:#8A96A3}
+/* Ẩn các nút ảo khi chơi: chỉ ẩn hình, không đổi gì về cảm ứng/phím */
+.gk-ctls{transition:opacity .15s}
+.gk[data-mode=play].vis-off .gk-ctls{opacity:0;visibility:hidden}
+
+/* ── Bảng công cụ (kéo được) ── */
+.gk-panel{position:fixed;z-index:25;width:264px;max-height:min(calc(100vh - 20px),520px);display:flex;flex-direction:column;border-radius:12px;
+  background:var(--s1);border:1px solid var(--bd);box-shadow:0 16px 44px rgba(0,0,0,.5);color:var(--tx);
+  opacity:0;scale:.96;transform-origin:top center;pointer-events:none;transition:opacity .2s ease,scale .2s ease;user-select:none}
+.gk-panel.on{opacity:1;scale:1;pointer-events:auto}
+.gk-panel[hidden]{display:none}
+.gk-panel.dragging{transition:none;box-shadow:0 22px 56px rgba(0,0,0,.6)}
+.gk-ph{display:flex;align-items:center;gap:7px;height:36px;flex:none;padding:0 6px 0 11px;border-bottom:1px solid var(--bd);cursor:grab;font-size:12px}
+.gk-panel.dragging .gk-ph{cursor:grabbing}
+.gk-ph .sp{flex:1}
+.gk-pi{color:var(--ac);display:grid}.gk-pi svg{width:16px;height:16px}
+.gk-dirty{width:7px;height:7px;border-radius:50%;background:var(--warn,#E3B341);flex:none}
+.gk-dirty[hidden]{display:none}
+.gk-pb{flex:1;min-height:0;overflow:auto;padding:10px 11px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin}
+.gk-panel.min .gk-pb,.gk-panel.min .gk-pf{display:none}
+.gk-s{display:flex;flex-direction:column;gap:6px}
+.gk-l{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--tx2)}
+.gk-row{display:flex;gap:6px;align-items:center}
+.gk-row>*{min-width:0}
+.gk-panel input[type=text],.gk-panel input[type=number],.gk-panel select{height:30px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);padding:0 9px;font:inherit;width:100%;outline:none;user-select:text}
+.gk-panel input:focus,.gk-panel select:focus{border-color:var(--ac)}
+.gk-panel input[type=range]{width:100%;accent-color:var(--ac);cursor:pointer}
+.gk-ib{width:30px;height:30px;flex:none;border-radius:8px;border:1px solid var(--bd);background:var(--s2);display:grid;place-items:center;cursor:pointer;transition:var(--t)}
+.gk-ib:hover{border-color:var(--bh);background:var(--hv)}
+.gk-ib svg{width:15px;height:15px}
+.gk-ib.sm{width:24px;height:24px;border:0;background:transparent}
+.gk-ib.dng:hover{border-color:var(--err);color:var(--err)}
+.gk-small{font-size:11px;color:var(--tx2);overflow-wrap:anywhere}
+.gk-add{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.gk-add button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px 6px;border-radius:9px;border:1px solid var(--bd);background:var(--s2);cursor:pointer;font-size:10.5px;line-height:1.15;text-align:center;transition:var(--t)}
+.gk-add button:hover{border-color:var(--ac);color:var(--ac);background:color-mix(in srgb,var(--ac) 8%,var(--s2))}
+.gk-add button:active{scale:.95}
+.gk-add svg{width:22px;height:22px}
+.gk-list{display:flex;flex-direction:column;gap:3px;max-height:112px;overflow:auto;scrollbar-width:thin}
+.gk-li{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:7px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;font-size:12px;transition:var(--t)}
+.gk-li:hover{background:var(--hv)}
+.gk-li.sel{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
+.gk-li svg{width:14px;height:14px;flex:none;color:var(--tx2)}
+.gk-li span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gk-li em{font:600 10px ui-monospace,Consolas,monospace;font-style:normal;color:var(--tx2)}
+.gk-props{padding:9px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;gap:8px}
+.gk-ph2{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+.gk-ph2 svg{width:15px;height:15px;color:var(--ac)}.gk-ph2 span{flex:1}
+.gk-keys{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.gk-keys.one{grid-template-columns:1fr}
+.gk-chip{height:44px;border-radius:8px;border:1px solid var(--bd);background:var(--s2);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;transition:var(--t);min-width:0}
+.gk-chip small{font-size:9.5px;color:var(--tx2)}
+.gk-chip b{font:700 12px Inter,"Segoe UI",system-ui,sans-serif;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.gk-keys.one .gk-chip{height:34px;flex-direction:row;gap:8px}
+.gk-chip:hover{border-color:var(--bh);background:var(--hv)}
+.gk-chip.sel{border-color:var(--ac)}
+.gk-chip.cap{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 16%,transparent);animation:gk-blink 1s infinite ease-in-out}
+.gk-chip.none b{color:var(--tx2);font-weight:500}
+@keyframes gk-blink{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--ac) 30%,transparent)}}
+.gk-two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.gk-two label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--tx2)}
+.gk-sl{display:flex;justify-content:space-between;font-size:11px;color:var(--tx2)}
+.gk-sl b{font:600 11px ui-monospace,Consolas,monospace;color:var(--tx)}
+.gk-chk{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer}
+.gk-chk input{accent-color:var(--ac)}
+.gk-link{border:0;background:transparent;color:var(--ac);font-size:11px;cursor:pointer;padding:2px 0;text-align:left}
+.gk-link:hover{text-decoration:underline}
+.gk-empty{font-size:11.5px;color:var(--tx2);padding:4px 0}
+.gk-pf{display:flex;gap:6px;padding:9px 11px;border-top:1px solid var(--bd);flex:none}
+.gk-btn{flex:1;height:32px;border-radius:8px;border:1px solid var(--bd);background:var(--s2);cursor:pointer;font-size:12px;font-weight:600;transition:var(--t)}
+.gk-btn:hover{border-color:var(--bh);background:var(--hv)}
+.gk-btn:active{scale:.96}
+.gk-btn.pri{background:var(--ac);border-color:var(--ac);color:#04110f}
+.gk-btn.pri:hover{filter:brightness(1.08)}
+.gk-btn.warn{border-color:var(--err);color:var(--err)}
+.gk-btn:disabled{opacity:.45;pointer-events:none}
+.gk-menu{position:absolute;right:11px;top:112px;z-index:3;min-width:170px;padding:4px;border-radius:9px;background:var(--s2);border:1px solid var(--bd);box-shadow:0 10px 28px rgba(0,0,0,.45);display:none}
+.gk-menu.open{display:block;animation:gk-pop .14s ease both}
+.gk-menu button{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;cursor:pointer;font-size:12px;text-align:left}
+.gk-menu button:hover{background:var(--hv)}
+.gk-menu button.dng:hover,.gk-menu button.armed{background:var(--err);color:#fff}
+.gk-menu svg{width:14px;height:14px}
+.gk-menu hr{border:0;border-top:1px solid var(--bd);margin:4px 2px}
+
+@media (prefers-reduced-motion:reduce){.gk,.gk-shade,.gk-panel,.gk-c,.gk-body,.gk-menu.open{transition:none!important;animation:none!important}}

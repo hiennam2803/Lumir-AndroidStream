@@ -19,7 +19,7 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 
 use crate::adb::Adb;
 use crate::ctl::{push_jar, REMOTE_JAR, SERVER_VERSION};
-use crate::stream::{send_parts, Quality, Session, K_DELTA, K_KEY, K_ROTATE};
+use crate::stream::{send_parts, Quality, Session, K_DELTA, K_KEY, K_ROTATE, K_STATS};
 
 const SHELL_TIMEOUT: Duration = Duration::from_secs(10);
 /// "h264" dạng u32 big-endian (codec id mà scrcpy gửi trong codec meta).
@@ -65,6 +65,71 @@ fn parse_header(h: &[u8; 12]) -> (bool, bool, usize) {
     let pts = u64::from_be_bytes(p);
     let size = u32::from_be_bytes([h[8], h[9], h[10], h[11]]) as usize;
     (pts & FLAG_CONFIG != 0, pts & FLAG_KEY != 0, size)
+}
+
+/// Số liệu chẩn đoán gửi kèm luồng video mỗi ~1 giây (gói `K_STATS`) để biết khung bị giữ ở khâu nào khi hình giật rồi nhảy:
+/// - `pts_gap_max`: khoảng cách lớn nhất giữa hai khung theo ĐỒNG HỒ ĐIỆN THOẠI (bộ mã hoá có xuất khung đều không?);
+/// - `read_gap_max`: khoảng cách lớn nhất giữa hai gói đọc xong ở Rust (đường USB/ADB + socket có đều không?);
+/// - `send_max`: lần `Channel::send` lâu nhất (kênh Tauri → WebView có nghẽn không?);
+/// - thời điểm gửi (epoch ms): WebView so với giờ của nó để ra độ trễ Rust → JS (gói này xếp sau các khung nên phản ánh cả hàng đợi).
+/// Gói 24 byte big-endian: pts_gap_ms u32 · read_gap_ms u32 · send_ms u32 · số gói u32 · epoch_ms u64.
+struct WinStats {
+    start: Instant,
+    last_done: Option<Instant>,
+    last_pts: Option<u64>,
+    pts_gap_max_us: u64,
+    read_gap_max: Duration,
+    send_max: Duration,
+    packets: u32,
+}
+
+impl WinStats {
+    fn new() -> Self {
+        WinStats { start: Instant::now(), last_done: None, last_pts: None, pts_gap_max_us: 0, read_gap_max: Duration::ZERO, send_max: Duration::ZERO, packets: 0 }
+    }
+    /// Gói khung (không phải config) vừa đọc xong lúc `done`, có pts (micro giây, đồng hồ điện thoại).
+    fn on_packet(&mut self, done: Instant, pts_us: u64) {
+        if let Some(l) = self.last_done {
+            let g = done.saturating_duration_since(l);
+            if g > self.read_gap_max {
+                self.read_gap_max = g;
+            }
+        }
+        self.last_done = Some(done);
+        if let Some(p) = self.last_pts {
+            let g = pts_us.saturating_sub(p);
+            if g > self.pts_gap_max_us {
+                self.pts_gap_max_us = g;
+            }
+        }
+        self.last_pts = Some(pts_us);
+        self.packets += 1;
+    }
+    fn on_send(&mut self, d: Duration) {
+        if d > self.send_max {
+            self.send_max = d;
+        }
+    }
+    fn due(&self) -> bool {
+        self.start.elapsed() >= Duration::from_secs(1)
+    }
+    /// Đóng gói số liệu của cửa sổ vừa rồi và mở cửa sổ mới (giữ mốc "gói trước" để không mất khoảng cách xuyên cửa sổ).
+    fn take(&mut self) -> [u8; 24] {
+        let mut p = [0u8; 24];
+        let ms32 = |x: u128| x.min(u32::MAX as u128) as u32;
+        p[0..4].copy_from_slice(&ms32((self.pts_gap_max_us / 1000) as u128).to_be_bytes());
+        p[4..8].copy_from_slice(&ms32(self.read_gap_max.as_millis()).to_be_bytes());
+        p[8..12].copy_from_slice(&ms32(self.send_max.as_millis()).to_be_bytes());
+        p[12..16].copy_from_slice(&self.packets.to_be_bytes());
+        let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+        p[16..24].copy_from_slice(&now_ms.to_be_bytes());
+        self.start = Instant::now();
+        self.pts_gap_max_us = 0;
+        self.read_gap_max = Duration::ZERO;
+        self.send_max = Duration::ZERO;
+        self.packets = 0;
+        p
+    }
 }
 
 fn new_scid() -> u32 {
@@ -195,6 +260,7 @@ fn run_connected(
     let mut cfg: Vec<u8> = Vec::new();
     let mut buf: Vec<u8> = Vec::new();
     let mut hdr = [0u8; 12];
+    let mut win = WinStats::new();
     loop {
         if stream.read_exact(&mut hdr).is_err() {
             break;
@@ -222,16 +288,27 @@ fn run_connected(
             }
             continue;
         }
+        let done = Instant::now();
+        let pts = u64::from_be_bytes([hdr[0], hdr[1], hdr[2], hdr[3], hdr[4], hdr[5], hdr[6], hdr[7]]) & !(FLAG_CONFIG | FLAG_KEY);
+        win.on_packet(done, pts);
         let ok = if is_key {
             send_parts(ch, K_KEY, &[&cfg[..], &buf[..]])
         } else {
             send_parts(ch, K_DELTA, &[&buf[..]])
         };
+        win.on_send(done.elapsed());
         if !ok {
             sess.stop(); // cửa sổ đã đóng: Channel không còn người nhận
             break;
         }
         frames += 1;
+        if win.due() {
+            let st = win.take();
+            if !send_parts(ch, K_STATS, &[&st[..]]) {
+                sess.stop();
+                break;
+            }
+        }
     }
     Outcome { frames, err: if err.is_empty() { err } else { with_log(err) } }
 }
@@ -239,6 +316,24 @@ fn run_connected(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn win_stats_tracks_gaps_and_resets() {
+        let mut w = WinStats::new();
+        let t0 = Instant::now();
+        w.on_packet(t0, 1_000_000);
+        w.on_packet(t0 + Duration::from_millis(40), 1_033_000);
+        w.on_packet(t0 + Duration::from_millis(50), 1_050_000);
+        w.on_send(Duration::from_millis(7));
+        let p = w.take();
+        assert_eq!(u32::from_be_bytes([p[0], p[1], p[2], p[3]]), 33); // pts: 33 ms là khoảng lớn nhất
+        assert_eq!(u32::from_be_bytes([p[4], p[5], p[6], p[7]]), 40); // đọc: 40 ms
+        assert_eq!(u32::from_be_bytes([p[8], p[9], p[10], p[11]]), 7); // gửi: 7 ms
+        assert_eq!(u32::from_be_bytes([p[12], p[13], p[14], p[15]]), 3);
+        let q = w.take();
+        assert_eq!(u32::from_be_bytes([q[12], q[13], q[14], q[15]]), 0);
+        assert_eq!(&q[0..12], &[0u8; 12]);
+    }
 
     #[test]
     fn header_flags() {

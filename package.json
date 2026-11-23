@@ -4,7 +4,10 @@
   "private": true,
   "description": "LUMIR — Android to Windows Interactive Mirroring (UI prototype, Tauri 2)",
   "scripts": {
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:core": "node --test tests/*.test.js",
+    "test:e2e": "node tests/e2e-keymap.mjs",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"

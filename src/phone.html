@@ -6,6 +6,7 @@
 <title>LUMIR</title>
 <link rel="stylesheet" href="styles/fonts.css">
 <link rel="stylesheet" href="styles/phone.css">
+<link rel="stylesheet" href="styles/keymap.css">
 </head>
 <body>
 
@@ -76,13 +77,32 @@
     <div class="perf-metric"><span>Canvas draw</span><b id="perfDrawMs">—</b></div>
     <div class="perf-metric"><span>JS memory</span><b id="perfMemory">—</b></div>
     <div class="perf-metric"><span>Decoder errors</span><b id="perfErrors">0</b></div>
+<div class="perf-metric"><span>FPS 1s</span><b id="perfFps1">—</b></div>
+<div class="perf-metric"><span>FPS 5s</span><b id="perfFps5">—</b></div>
+<div class="perf-metric"><span>Frame interval avg / max</span><b id="perfArrive">—</b></div>
+<div class="perf-metric"><span>IPC RTT</span><b id="perfRtt">—</b></div>
+<div class="perf-metric"><span>Packet loss</span><b id="perfLoss">—</b></div>
+<div class="perf-metric"><span>Dropped frames</span><b id="perfDropped">0</b></div>
+<div class="perf-metric"><span>Event loop lag avg / max</span><b id="perfLag">—</b></div>
+<div class="perf-metric"><span>Long task max</span><b id="perfLong">—</b></div>
+<div class="perf-metric"><span>GPU usage</span><b id="perfGpu">N/A</b></div>
+<div class="perf-metric"><span>Draw load (est.)</span><b id="perfLoad">—</b></div>
+<div class="perf-metric"><span>Khung gộp (dồn cục)</span><b id="perfCoalesce">0</b></div>
+<div class="perf-metric"><span>Đt: khoảng khung (pts)</span><b id="perfPts">N/A</b></div>
+<div class="perf-metric"><span>Rust: khoảng đọc</span><b id="perfRead">N/A</b></div>
+<div class="perf-metric"><span>Rust: gửi lâu nhất</span><b id="perfSend">N/A</b></div>
+<div class="perf-metric"><span>Rust → JS</span><b id="perfTransit">N/A</b></div>
   </div>
   <div class="perf-chart-title"><span>FPS history</span><small>Last 60 samples</small></div>
   <svg class="perf-chart" viewBox="0 0 280 66" role="img" aria-label="FPS history"><line x1="0" y1="12" x2="280" y2="12"/><line x1="0" y1="36" x2="280" y2="36"/><line x1="0" y1="60" x2="280" y2="60"/><polyline id="perfLine" points=""/></svg>
-  <p class="perf-note">Packet FPS là số frame JavaScript nhận được, không phải FPS đo trực tiếp tại Rust. Memory chỉ khả dụng nếu WebView cung cấp API.</p>
+  <p class="perf-note">Packet FPS là số frame JavaScript nhận được, không phải FPS đo trực tiếp tại Rust. IPC RTT là vòng WebView↔Rust (không phải tới điện thoại). Packet loss/Dropped là frame bị bỏ trước hoặc trong lúc giải mã. GPU usage chỉ có khi có nguồn đo; Draw load chỉ là ước tính. Memory/Long task chỉ khả dụng nếu WebView cung cấp API.</p>
 </section>
 <div id="toast" role="status"></div>
 <script src="scripts/performance.js"></script>
 <script src="scripts/phone.js"></script>
+<script src="scripts/popups.js"></script>
+<!-- Game Key Mapping: lõi thuần + giao diện; thiếu hai file này thì phần còn lại của cửa sổ vẫn chạy bình thường -->
+<script src="scripts/keymap-core.js"></script>
+<script src="scripts/keymap.js"></script>
 </body>
 </html>

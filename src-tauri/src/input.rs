@@ -255,6 +255,53 @@ fn up_bytes(p: &PadInfo, u: f64, v: f64) -> Vec<u8> {
     b
 }
 
+// ───────────────────────── Ngón chạm của ánh xạ phím ─────────────────────────
+
+/// Vị trí cuối của một ngón: (x, y, rộng, cao) theo điểm ảnh màn hình đang hiển thị.
+type PtrPos = (i32, i32, u16, u16);
+
+/// Theo dõi các ngón (id 100+) mà Game Key Mapping đang giữ trên màn hình.
+///
+/// Hai việc: (1) lọc lệnh sai thứ tự — một `Move`/`Up` tới sau khi ngón đã nhả (ví dụ lệnh còn nằm trong hàng đợi
+/// khi frontend mất focus) sẽ khiến scrcpy-server TẠO một ngón mới chưa bao giờ nhấc lên ("ngón ma" kẹt trên màn hình);
+/// (2) biết chính xác ngón nào đang chạm để nhả hết khi thoát chế độ chơi, mất focus hoặc đóng cửa sổ.
+#[derive(Default)]
+pub struct PointerTracker {
+    held: HashMap<i64, PtrPos>,
+}
+
+impl PointerTracker {
+    /// Hành động thật sự được gửi cho server (`None` = bỏ lệnh). Đã cập nhật trạng thái.
+    pub fn accept(&mut self, id: i64, act: Act, pos: PtrPos) -> Option<Act> {
+        match act {
+            // Down lên ngón đang giữ = coi như di chuyển (không bao giờ có hai Down liên tiếp cùng id).
+            Act::Down => Some(if self.held.insert(id, pos).is_some() { Act::Move } else { Act::Down }),
+            Act::Move => self.held.contains_key(&id).then(|| {
+                self.held.insert(id, pos);
+                Act::Move
+            }),
+            Act::Up => self.held.remove(&id).map(|_| Act::Up),
+        }
+    }
+
+    /// Gửi thất bại → ngón đó chưa từng chạm thật, đừng nhớ nó.
+    pub fn forget(&mut self, id: i64) {
+        self.held.remove(&id);
+    }
+
+    /// Lấy ra (và quên) mọi ngón đang giữ, theo thứ tự id, kèm vị trí cuối để nhả đúng chỗ.
+    pub fn release_all(&mut self) -> Vec<(i64, PtrPos)> {
+        let mut v: Vec<_> = self.held.drain().collect();
+        v.sort_by_key(|(id, _)| *id);
+        v
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.held.len()
+    }
+}
+
 // ───────────────────────── Link ─────────────────────────
 
 /// (x, y) chuẩn hoá trên khung hình hiển thị → điểm ảnh theo hướng hiển thị hiện tại + kích thước màn hình đó.
@@ -322,6 +369,8 @@ pub struct Link {
     closed: AtomicBool,
     born: Instant,
     ctl_failed: AtomicBool,
+    /// Các ngón của ánh xạ phím đang chạm (xem `PointerTracker`).
+    held: Mutex<PointerTracker>,
 }
 
 impl Link {
@@ -337,6 +386,7 @@ impl Link {
             closed: AtomicBool::new(false),
             born: Instant::now(),
             ctl_failed: AtomicBool::new(false),
+            held: Mutex::new(PointerTracker::default()),
         })
     }
 
@@ -506,8 +556,27 @@ impl Link {
             Phase::Move => Act::Move,
             Phase::Up => Act::Up,
         };
-        c.touch_ptr(pointer, act, px, py, w, h);
+        // Giữ khoá tracker suốt lúc gửi: `release_pointers` chạy xen vào sẽ thấy trạng thái nhất quán,
+        // và Move tới muộn sau khi đã nhả bị bỏ thay vì tạo ngón ma.
+        let mut held = lock(&self.held);
+        let Some(act) = held.accept(pointer, act, (px, py, w, h)) else { return Ok(()) };
+        if !c.touch_ptr(pointer, act, px, py, w, h) {
+            held.forget(pointer);
+            return Err("Control channel lost".to_string());
+        }
         Ok(())
+    }
+
+    /// Nhấc mọi ngón của ánh xạ phím đang chạm (thoát chế độ chơi, mất focus, đóng cửa sổ). Trả số ngón đã nhả.
+    pub fn release_pointers(&self) -> usize {
+        let mut held = lock(&self.held);
+        let all = held.release_all();
+        if let Some(c) = self.ctl_ready() {
+            for (id, (x, y, w, h)) in &all {
+                c.touch_ptr(*id, Act::Up, *x, *y, *w, *h);
+            }
+        }
+        all.len()
     }
 
     /// Chép (hoặc cắt) đoạn đang chọn trên điện thoại và trả nội dung; chuỗi rỗng nếu không có gì.
@@ -652,6 +721,7 @@ impl Link {
     }
 
     fn shutdown(&self) {
+        self.release_pointers(); // server chết khi còn ngón chạm thì Android giữ ngón đó mãi — nhả trước
         self.closed.store(true, Ordering::SeqCst);
         self.orient.stop();
         if let Some(c) = lock(&self.ctl).take() {
@@ -779,5 +849,49 @@ arm64-v8a
         let narrow = PadInfo { wide: false, ..p };
         assert_eq!(move_bytes(&narrow, 0.0, 0.0).len(), 3 * 16);
         assert_eq!(esc(&[0, 255, 8]), "\\000\\377\\010");
+    }
+    #[test]
+    fn tracker_blocks_ghost_pointers() {
+        let pos = (10, 20, 1080, 2400);
+        let mut t = PointerTracker::default();
+        // Move/Up của ngón chưa từng chạm: bỏ (nếu lọt tới scrcpy sẽ sinh ngón ma kẹt trên màn hình).
+        assert_eq!(t.accept(100, Act::Move, pos), None);
+        assert_eq!(t.accept(100, Act::Up, pos), None);
+        assert_eq!(t.len(), 0);
+        // Vòng đời bình thường.
+        assert_eq!(t.accept(100, Act::Down, pos), Some(Act::Down));
+        assert_eq!(t.accept(100, Act::Move, (11, 21, 1080, 2400)), Some(Act::Move));
+        assert_eq!(t.accept(100, Act::Up, pos), Some(Act::Up));
+        assert_eq!(t.len(), 0);
+        // Sau khi nhả, Move đến muộn bị bỏ.
+        assert_eq!(t.accept(100, Act::Move, pos), None);
+        // Hai Down liên tiếp cùng id → lần hai là Move (không bao giờ có 2 Down).
+        assert_eq!(t.accept(101, Act::Down, pos), Some(Act::Down));
+        assert_eq!(t.accept(101, Act::Down, pos), Some(Act::Move));
+        assert_eq!(t.len(), 1);
+    }
+
+    #[test]
+    fn tracker_release_all_returns_last_positions_in_order() {
+        let mut t = PointerTracker::default();
+        t.accept(103, Act::Down, (1, 1, 100, 200));
+        t.accept(101, Act::Down, (2, 2, 100, 200));
+        t.accept(101, Act::Move, (5, 6, 100, 200)); // vị trí cuối của 101
+        t.accept(102, Act::Down, (3, 3, 100, 200));
+        t.accept(102, Act::Up, (3, 3, 100, 200)); // đã nhả → không nằm trong danh sách
+        assert_eq!(t.release_all(), vec![(101, (5, 6, 100, 200)), (103, (1, 1, 100, 200))]);
+        assert_eq!(t.len(), 0);
+        assert!(t.release_all().is_empty());
+        // Sau release_all, lệnh tới muộn của ngón cũ không làm sống lại nó.
+        assert_eq!(t.accept(101, Act::Move, (9, 9, 100, 200)), None);
+    }
+
+    #[test]
+    fn tracker_forgets_failed_down() {
+        let mut t = PointerTracker::default();
+        assert_eq!(t.accept(100, Act::Down, (1, 1, 10, 10)), Some(Act::Down));
+        t.forget(100); // gửi thất bại → chưa từng chạm thật
+        assert_eq!(t.accept(100, Act::Move, (1, 1, 10, 10)), None);
+        assert!(t.release_all().is_empty());
     }
 }

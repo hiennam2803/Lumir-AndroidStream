@@ -16,6 +16,7 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, State, W
 use crate::adb::{self, AdbError};
 use crate::device::{self, AdbStatus, AppState, DeviceView};
 use crate::input::{Inputs, Phase};
+use crate::keymap;
 use crate::stream::{Quality, Streams};
 
 type Shared<'a> = State<'a, Arc<AppState>>;
@@ -361,6 +362,31 @@ pub async fn touch_pointer(
 
 /// Chạm thời gian thực: phase = down | move | up, (x, y) chuẩn hoá 0..1 trên khung hình đang hiển thị.
 /// Frontend gọi tuần tự (đợi lệnh trước xong mới gửi lệnh sau) nên thứ tự down → move → up được giữ nguyên.
+/// Nhấc mọi ngón của ánh xạ phím đang chạm (thoát chế độ chơi / mất focus). Không cần thiết bị đang kết nối:
+/// phải chạy được cả lúc rút cáp. Trả số ngón đã nhả.
+#[tauri::command]
+pub async fn touch_release_all(inputs: State<'_, Arc<Inputs>>, serial: String) -> Result<u32, String> {
+    let Some(link) = inputs.get(&serial) else { return Ok(0) };
+    blocking(move || Ok(link.release_pointers() as u32)).await
+}
+
+/// Gói ứng dụng đang ở foreground trên điện thoại (chuỗi rỗng nếu không xác định, vd. đang ở màn hình khoá).
+/// Dùng để gắn profile Game Key Mapping với từng game.
+#[tauri::command]
+pub async fn foreground_app(state: Shared<'_>, serial: String) -> Result<String, String> {
+    let st = state.inner().clone();
+    device::connected_view(&st, &serial).ok_or_else(|| device::MSG_NOT_CONNECTED.to_string())?;
+    blocking(move || {
+        // `; echo` để grep không khớp dòng nào (exit 1) cũng không bị adb coi là lỗi.
+        let out = st
+            .adb
+            .shell(&serial, "dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' | head -n 6; echo")
+            .map_err(|e| e.to_string())?;
+        Ok(keymap::parse_foreground(&out).unwrap_or_default())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn touch_event(
     state: Shared<'_>,
@@ -474,4 +500,10 @@ pub fn focus_main_window(app: AppHandle) -> Result<(), String> {
     let _ = w.unminimize();
     let _ = w.show();
     w.set_focus().map_err(|e| e.to_string())
+}
+
+/// Đo vòng đi-về IPC (WebView → Rust → WebView) cho bảng Performance (`network_rtt`). Không làm gì khác.
+#[tauri::command]
+pub async fn ping() -> u8 {
+    0
 }
