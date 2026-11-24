@@ -4,7 +4,7 @@ LUMIR là ứng dụng desktop dùng để kết nối điện thoại Android v
 
 Ứng dụng được xây dựng bằng **Tauri 2, Rust, HTML, CSS và JavaScript**. ADB được sử dụng làm lớp giao tiếp với thiết bị Android.
 
-> **Trạng thái dự án:** bản prototype/đang phát triển. Một số tính năng, đặc biệt là kết nối LAN và điều khiển trên các thiết bị khác nhau, có thể còn giới hạn tùy môi trường.
+> **Trạng thái dự án:** bản chỉnh thức dùng được/đang phát triển. Một số tính năng, đặc biệt là kết nối LAN và điều khiển trên các thiết bị khác nhau, có thể còn giới hạn tùy môi trường.
 
 ## Tính năng
 
