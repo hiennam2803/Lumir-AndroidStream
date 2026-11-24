@@ -84,7 +84,7 @@ function fpsTick(){
  sampleRtt();sampleGpu();
 
  state.latest={packet,decoder,render,queue,decodeMs,drawMs,memory,arriveAvg,arriveMax,lossPct,dropped1s,lagAvg,lagMax,longMax,longCnt,rtt,renderLoad,fps1,fps5,coalesced1s,rs};
- if(state.open){
+ if(isOpen()){
   set('perfPacket',fmt(packet,0));set('perfDecoder',fmt(decoder,0));set('perfRender',fmt(render,0));
   set('perfQueue',queue==null?'—':String(queue));set('perfDecodeMs',decodeMs==null?'—':fmt(decodeMs,2)+' ms');
   set('perfDrawMs',drawMs==null?'—':fmt(drawMs,2)+' ms');set('perfMemory',memory==null?'N/A':fmt(memory,0)+' MB');set('perfErrors',String(state.errors));
@@ -115,9 +115,10 @@ function drawChart(){
  const points=a.map((x,i)=>`${(i/(Math.max(1,a.length-1)))*280},${60-Math.min(60,(x.render_fps||0)/max*54)}`).join(' ');
  line.setAttribute('points',points);
 }
-function toggle(force){state.open=force==null?!state.open:!!force;$('perfPanel').hidden=!state.open;
- const b=document.querySelector('.rb[data-t=perf]');if(b){b.classList.toggle('on',state.open);b.setAttribute('aria-pressed',String(state.open))}
- if(state.open)fpsTick()}
+/* Mở/đóng do registry popup quản lý (popups/registry.js); module này chỉ biết "đang mở không" để khỏi cập nhật DOM khi ẩn. */
+const popups=()=>window.Lumir&&window.Lumir.popups;
+const isOpen=()=>{const P=popups();return !!P&&P.isOpen('performance')};
+function toggle(force){const P=popups();if(!P)return;if(force==null)P.toggle('performance');else if(force)P.open('performance');else P.close('performance')}
 function csv(){
  const cols=['time','packet_fps','decoder_fps','render_fps','fps_1s','fps_5s','decode_queue','decode_to_output_avg_ms','canvas_draw_avg_ms','frame_arrival_interval_avg_ms','frame_arrival_interval_max_ms','network_rtt_ms','packet_loss_pct','dropped_frames','dropped_frames_1s','event_loop_lag_avg_ms','event_loop_lag_max_ms','long_task_duration_max_ms','long_task_count','gpu_usage_pct','render_load_pct','coalesced_frames_1s','device_pts_gap_max_ms','rust_read_gap_max_ms','rust_send_max_ms','rust_to_js_transit_ms','js_heap_mb','decoder_errors'];
  const esc=v=>{if(v==null)return '';const s=typeof v==='number'?String(Math.round(v*1000)/1000):String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
@@ -151,6 +152,6 @@ window.LumirPerf={
 };
 $('perfExport')?.addEventListener('click',csv);
 $('perfClose')?.addEventListener('click',()=>toggle(false));
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.open)toggle(false)});
+if(popups())popups().register({id:'performance',el:'#perfPanel',button:'perf',handle:'.perf-head',grip:'sticky',persist:'perf',onShow:fpsTick});
 setInterval(fpsTick,1000);
 })();

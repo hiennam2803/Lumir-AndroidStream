@@ -333,3 +333,36 @@ test('INVARIANT (fuzz): downs and ups always balance, no stray move/up, never >9
     assert.equal(e.activeCount, 0);
   }
 });
+
+/* ───────────── Tối ưu hiệu năng: fingerprint & idle ───────────── */
+test('fingerprint (no-clone) ignores panel position and timestamps but sees real edits', () => {
+  const ref = s => { const c = C.clone(s); delete c.settings.panel; c.profiles.forEach(p => { delete p.updatedAt; delete p.lastUsedAt; }); return JSON.stringify(c); };
+  const s = C.defaultStore();
+  const p = C.activeProfile(s); p.controls.push(C.makeControl('joystick', {}), C.makeControl('button', { key: 'KeyQ' }), C.makeControl('dpad', { keys: { up: 'ArrowUp', left: 'ArrowLeft', down: 'ArrowDown', right: 'ArrowRight' } }));
+  s.settings.panel = { x: 0.2, y: 0.3 };
+  assert.equal(C.fingerprint(s), ref(s));
+  const before = C.fingerprint(s);
+  s.settings.panel = { x: 0.9, y: 0.9 }; p.updatedAt = 1; p.lastUsedAt = 2;
+  assert.equal(C.fingerprint(s), before);
+  p.controls[1].x += 0.01;
+  assert.notEqual(C.fingerprint(s), before);
+  assert.equal(s.settings.panel.x, 0.9);   /* không làm hỏng dữ liệu gốc */
+});
+
+test('Engine.idle: true at rest, false while held/sliding, true again after settling; update() at rest sends nothing', () => {
+  const log = [], clock = { t: 0 };
+  const e = new C.Engine({ send: (p, ph) => log.push(ph), geom: () => ({ w: 400, h: 800 }), now: () => clock.t });
+  const prof = C.defaultProfile('t'); prof.controls.push(C.makeControl('joystick', { x: 0.25, y: 0.75 }), C.makeControl('button', { key: 'KeyQ', x: 0.8, y: 0.7 }));
+  e.setProfile(prof);
+  assert.equal(e.idle, true);
+  e.update(16); assert.deepEqual(log, []);
+  e.keyDown('KeyD'); assert.equal(e.idle, false);
+  e.keyDown('KeyQ');
+  for (let i = 0; i < 20; i++) { clock.t += 16; e.update(clock.t); }
+  e.keyUp('KeyD'); e.keyUp('KeyQ');
+  for (let i = 0; i < 60; i++) { clock.t += 16; e.update(clock.t); }
+  assert.equal(e.idle, true);
+  const n = log.length; clock.t += 16; e.update(clock.t);
+  assert.equal(log.length, n);
+  assert.equal(log.filter(x => x === 'down').length, log.filter(x => x === 'up').length);
+});

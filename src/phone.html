@@ -48,31 +48,6 @@
   <nav class="rail" id="rail" aria-label="Phone controls"></nav>
 </div>
 
-<!-- Bảng chất lượng video: mở bằng nút đồng hồ trên thanh dọc -->
-<div class="qp" id="qp" role="dialog" aria-label="Video quality" hidden>
-  <div class="qp-h" data-t="Video quality">Video quality</div>
-  <div class="qp-seg" id="qpSeg">
-    <button data-m="smooth" data-t="Smooth">Smooth</button>
-    <button data-m="balanced" data-t="Balanced">Balanced</button>
-    <button data-m="sharp" data-t="Sharp">Sharp</button>
-    <button data-m="custom" data-t="Custom">Custom</button>
-  </div>
-  <div class="qp-d" id="qpD"></div>
-  <div class="qp-c" id="qpC" hidden>
-    <label><span class="qp-l"><span data-t="Resolution (long side)">Resolution (long side)</span><b id="qpResV"></b></span>
-      <input type="range" id="qpRes" min="320" max="2560" step="80"></label>
-    <label><span class="qp-l"><span data-t="Bitrate">Bitrate</span><b id="qpBrV"></b></span>
-      <input type="range" id="qpBr" min="1" max="32" step="1"></label>
-  </div>
-  <div class="qp-f">
-    <span class="qp-l"><span data-t="Frame rate">Frame rate</span><b id="qpFpsV"></b></span>
-    <div class="qp-seg f4" id="qpFps" role="group" aria-label="Frame rate">
-      <button data-f="30">30</button><button data-f="60">60</button><button data-f="90">90</button><button data-f="120">120</button>
-    </div>
-    <div class="qp-d" id="qpFpsN"></div>
-  </div>
-</div>
-
 <section class="perf-panel" id="perfPanel" aria-label="Performance monitor" hidden>
   <header class="perf-head"><div><strong>Performance</strong><span id="perfState">Waiting for stream</span></div><div class="perf-acts"><button id="perfExport" type="button">Export CSV</button><button id="perfClose" class="perf-x" type="button" aria-label="Close performance panel" title="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div></header>
   <div class="perf-grid">
@@ -105,9 +80,12 @@
   <p class="perf-note">Packet FPS là số frame JavaScript nhận được, không phải FPS đo trực tiếp tại Rust. IPC RTT là vòng WebView↔Rust (không phải tới điện thoại). Packet loss/Dropped là frame bị bỏ trước hoặc trong lúc giải mã. GPU usage chỉ có khi có nguồn đo; Draw load chỉ là ước tính. Memory/Long task chỉ khả dụng nếu WebView cung cấp API.</p>
 </section>
 <div id="toast" role="status"></div>
+<script src="popups/base.js"></script>
+<script src="popups/registry.js"></script>
+<script src="popups/quality.js"></script>
 <script src="scripts/performance.js"></script>
+<script src="scripts/playout.js"></script>
 <script src="scripts/phone.js"></script>
-<script src="scripts/popups.js"></script>
 <!-- Game Key Mapping: lõi thuần + giao diện; thiếu hai file này thì phần còn lại của cửa sổ vẫn chạy bình thường -->
 <script src="scripts/keymap-core.js"></script>
 <script src="scripts/keymap.js"></script>

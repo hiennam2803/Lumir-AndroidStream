@@ -12,7 +12,7 @@ const win=demo?null:TA.window.getCurrentWindow();
 const VI={
  'Back':'Quay lại','Home':'Màn hình chính','Recent apps':'Ứng dụng gần đây',
  'Volume up':'Tăng âm lượng','Volume down':'Giảm âm lượng','Power / screen':'Nguồn / màn hình',
- 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Frame rate':'Tốc độ khung hình','High frame rates need a capable phone and may run warm.':'Tốc độ cao cần điện thoại đủ mạnh và có thể làm máy nóng.','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Key mapping':'Ánh xạ phím','Key mapping on':'Đã bật ánh xạ phím','Key mapping off':'Đã tắt ánh xạ phím','Edit layout':'Sửa bố cục','Done':'Xong','Clear':'Xoá hết','Click the screen to add a key · drag to move · right-click to delete':'Bấm lên màn hình để thêm phím · kéo để di chuyển · chuột phải để xoá','Press a key to assign…':'Nhấn một phím để gán…','Key mapping on — mapped keys tap the screen':'Ánh xạ phím đang bật — phím đã gán sẽ chạm vào màn hình','Key already used':'Phím này đã được dùng','Too many keys (max 9)':'Quá nhiều phím (tối đa 9)','Key mapping needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Video quality':'Chất lượng video','Smooth':'Mượt','Balanced':'Cân bằng','Sharp':'Sắc nét','Custom':'Tuỳ chỉnh','Resolution (long side)':'Độ phân giải (cạnh dài)','Bitrate':'Bitrate','Low resolution, fastest response':'Độ phân giải thấp, phản hồi nhanh nhất','Good quality, low latency':'Chất lượng tốt, độ trễ thấp','Full detail, needs a good cable':'Nhiều chi tiết, cần cáp USB tốt','Set resolution and bitrate yourself':'Tự chọn độ phân giải và bitrate','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
+ 'Always on top':'Luôn nổi trên cùng','Full screen':'Toàn màn hình','Performance':'Hiệu năng','Type with PC keyboard':'Gõ bằng bàn phím máy tính','Keyboard on: typing goes to the phone':'Đã bật bàn phím: chữ gõ sẽ vào ô nhập trên điện thoại','Keyboard off':'Đã tắt bàn phím','Key mapping':'Ánh xạ phím','Key mapping on':'Đã bật ánh xạ phím','Key mapping off':'Đã tắt ánh xạ phím','Edit layout':'Sửa bố cục','Done':'Xong','Clear':'Xoá hết','Click the screen to add a key · drag to move · right-click to delete':'Bấm lên màn hình để thêm phím · kéo để di chuyển · chuột phải để xoá','Press a key to assign…':'Nhấn một phím để gán…','Key mapping on — mapped keys tap the screen':'Ánh xạ phím đang bật — phím đã gán sẽ chạm vào màn hình','Key already used':'Phím này đã được dùng','Too many keys (max 9)':'Quá nhiều phím (tối đa 9)','Key mapping needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Copied from the phone':'Đã chép từ điện thoại','Nothing copied from the phone':'Không chép được gì từ điện thoại','Copy needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh điều khiển chưa sẵn sàng, thử lại sau giây lát.','Typing needs the scrcpy control channel, which is still starting. Try again in a moment.':'Kênh gõ phím chưa sẵn sàng, thử lại sau giây lát.','Exit full screen':'Thoát toàn màn hình','Key mapping (coming soon)':'Ánh xạ phím (sắp có)',
  'Main window':'Cửa sổ chính','Minimize':'Thu nhỏ','Close':'Đóng',
  'Waiting for video stream':'Đang chờ luồng video','Retry':'Thử lại',
  'Video decoding is not supported on this system.':'Hệ thống này không hỗ trợ giải mã video.',
@@ -25,6 +25,9 @@ const VI={
 };
 let lang='en',theme='dark',pinned=true,serial='',dev=null,connected=false,ar=9/20,live=false;
 const T=k=>lang==='vi'&&VI[k]||k;
+/* Popup tự mang bản dịch của mình (popups/quality.js); chú thích kéo/phóng-thu dùng chung ở registry */
+Object.assign(VI,Lumir.quality.vi,{'Drag to zoom · Ctrl+wheel · double-click to reset':'Kéo để phóng/thu · Ctrl+cuộn · nhấp đúp để về 100%','Drag to move':'Kéo để di chuyển'});
+const Q=Lumir.quality,q=Q.state;   /* q: cài đặt chất lượng (đối tượng sống) */
 const mq=matchMedia('(prefers-color-scheme: dark)');
 
 /* ── Icon (viewBox 24, nét 1.8 — cùng phong cách cửa sổ chính) ── */
@@ -85,6 +88,7 @@ function applyLang(){
  document.documentElement.lang=lang;
  $$('[data-t]:not(.rb)').forEach(e=>{if(e.dataset.o===undefined)e.dataset.o=e.textContent;e.textContent=T(e.dataset.o)});
  $$('[data-l]').forEach(e=>{const s=T(e.dataset.l);e.setAttribute('aria-label',s);e.dataset.tip=s;if(e.classList.contains('ib'))e.title=s});
+ Lumir.popups.relabel(T);
 }
 
 /* ── Trạng thái thiết bị ── */
@@ -157,12 +161,19 @@ let winLand=null;   /* cửa sổ đang ở tỉ lệ ngang (true) hay dọc (fa
 const burstGap=()=>Math.max(2,Math.min(8,500/(q.fps||60)));   /* ms: nửa khoảng cách giữa hai khung (60 fps → 8, 120 fps → ~4) */
 let pendFrame=null,pendRaf=0,lastDraw=0;
 function dropPending(){
+ if(playout)playout.clear();
  if(pendFrame){try{pendFrame.close()}catch(_){}pendFrame=null}
  if(pendRaf){cancelAnimationFrame(pendRaf);pendRaf=0}
 }
 function flushPending(){pendRaf=0;const f=pendFrame;pendFrame=null;if(f)paintFrame(f)}
+/* Bộ đệm mạng (playout.js): tuỳ chọn cho Wi-Fi. Bật (q.buf > 0) thì khung đi qua bộ đệm và được phát đều nhịp thay vì vẽ ngay. */
+const playout=window.LumirPlayout?new window.LumirPlayout.Playout({
+ now:()=>performance.now(),raf:cb=>requestAnimationFrame(cb),caf:h=>cancelAnimationFrame(h),
+ paint:f=>paintFrame(f),close:f=>f.close(),onDrop:()=>{if(window.LumirPerf)window.LumirPerf.coalesced()}
+}):null;
 function drawFrame(f){
  if(window.LumirPerf)window.LumirPerf.decoderOutput();
+ if(playout&&q.buf>0){playout.delay=q.buf;playout.push(f);return}
  if(pendFrame){try{pendFrame.close()}catch(_){}pendFrame=f;if(window.LumirPerf)window.LumirPerf.coalesced();return}   /* đã có khung chờ: khung mới hơn thay thế */
  if(performance.now()-lastDraw>=burstGap()){paintFrame(f);return}
  pendFrame=f;pendRaf=requestAnimationFrame(flushPending);
@@ -256,56 +267,8 @@ async function setFull(on){
 }
 const toMain=()=>call('focus_main_window').catch(e=>toast(T(String(e))));
 
-/* ── Chất lượng video ──
-   screenrecord không có tuỳ chọn FPS (xuất khung mỗi khi màn hình đổi), nên "mượt / FPS cao" = độ phân giải và bitrate
-   thấp để encoder + cáp USB theo kịp; "sắc nét" = ngược lại. Đổi chế độ thì mở lại luồng video (~0,5 giây),
-   kênh điều khiển cảm ứng không bị ảnh hưởng. FPS hiển thị là số khung THỰC SỰ nhận được mỗi giây
-   (màn hình tĩnh thì encoder không gửi khung nên 0 fps là bình thường). */
-const PRESETS={
- smooth:{side:720,mbps:4,d:'Low resolution, fastest response'},
- balanced:{side:1280,mbps:8,d:'Good quality, low latency'},
- sharp:{side:1920,mbps:16,d:'Full detail, needs a good cable'},
- custom:{d:'Set resolution and bitrate yourself'}
-};
-const FPS_OPTS=[30,60,90,120];
-let q={mode:'balanced',side:1280,mbps:8,fps:60};
-function loadQ(){
- try{const v=JSON.parse(localStorage.getItem('lumir-q')||'{}');
-  if(PRESETS[v.mode])q.mode=v.mode;
-  if(v.side>=320&&v.side<=2560)q.side=v.side|0;
-  if(v.mbps>=1&&v.mbps<=32)q.mbps=v.mbps|0;
-  if(FPS_OPTS.includes(v.fps))q.fps=v.fps;}catch(_){}
- const p=PRESETS[q.mode];if(p.side){q.side=p.side;q.mbps=p.mbps}
-}
-function saveQ(){try{localStorage.setItem('lumir-q',JSON.stringify(q))}catch(_){}}
-function renderQ(){
- $$('#qpSeg button').forEach(b=>b.classList.toggle('on',b.dataset.m===q.mode));
- const d=$('#qpD');d.textContent=T(PRESETS[q.mode].d);
- $('#qpC').hidden=q.mode!=='custom';
- $('#qpRes').value=q.side;$('#qpBr').value=q.mbps;
- $('#qpResV').textContent=q.side+' px';$('#qpBrV').textContent=q.mbps+' Mbps';
- $$('#qpFps button').forEach(b=>b.classList.toggle('on',+b.dataset.f===q.fps));
- $('#qpFpsV').textContent=q.fps+' fps';
- $('#qpFpsN').textContent=q.fps>60?T('High frame rates need a capable phone and may run warm.'):'';
-}
-function applyQ(){saveQ();renderQ();if(connected&&!demo)startStream(true)}
-function setQP(on){
- $('#qp').hidden=!on;
- const b=$('.rb[data-t=qual]');if(b){b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)}
-}
-$('#qpSeg').addEventListener('click',e=>{
- const b=e.target.closest('button');if(!b||b.dataset.m===q.mode)return;
- q.mode=b.dataset.m;const p=PRESETS[q.mode];if(p.side){q.side=p.side;q.mbps=p.mbps}
- applyQ();
-});
-$('#qpRes').addEventListener('input',e=>{q.side=+e.target.value;$('#qpResV').textContent=q.side+' px'});
-$('#qpBr').addEventListener('input',e=>{q.mbps=+e.target.value;$('#qpBrV').textContent=q.mbps+' Mbps'});
-$('#qpFps').addEventListener('click',e=>{
- const b=e.target.closest('button');if(!b||+b.dataset.f===q.fps)return;
- q.fps=+b.dataset.f;applyQ();
-});
-$('#qpRes').addEventListener('change',applyQ);
-$('#qpBr').addEventListener('change',applyQ);
+/* ── Chất lượng video: giao diện + cài đặt nằm ở popups/quality.js; ở đây chỉ nối vào luồng ── */
+Q.bind({T,restart:()=>{if(connected&&!demo)startStream(true)},bufferChanged:()=>{if(playout)playout.clear()}});
 /* ── Chuột → cảm ứng thời gian thực ──
    Nhấn = ngón tay chạm xuống, kéo = ngón tay di chuyển, nhả = nhấc lên (Rust ghi thẳng vào màn hình cảm ứng nên
    kéo mượt, nhấn giữ và fling đúng như tay thật). Cuộn chuột = vuốt cuộn · chuột phải = Back · chuột giữa = Home.
@@ -370,15 +333,12 @@ cv.addEventListener('wheel',e=>{
 },{passive:false});
 
 document.addEventListener('click',e=>{
- if(!e.target.closest('#qp')&&!e.target.closest('.rb[data-t=qual]'))setQP(false);   /* bấm ra ngoài thì đóng bảng */
  const b=e.target.closest('.rb');
  if(b){
   const t=b.dataset.t;
   if(t==='key')press(b);
   else if(t==='pin')setPin(!pinned,true);
   else if(t==='full')setFull(!full);
-  else if(t==='qual')setQP($('#qp').hidden);
-  else if(t==='perf'){if(window.LumirPerf)window.LumirPerf.toggle()}
   else if(t==='main')toMain();
   else if(t==='kbd')setKbd(!kbd);
   else if(t==='map'){const k=KMAP();if(k)k.toggle()}
@@ -423,7 +383,7 @@ const kbText=s=>{if(s)kbSend('input_text',{text:s})};
 const kbCode=(code,e)=>kbSend('input_key',{code,ctrl:!!(e.ctrlKey||e.metaKey),shift:!!e.shiftKey,alt:!!e.altKey});
 function kbKey(e){
  if(e.isComposing||e.key==='Process'||e.keyCode===229)return false;   /* bộ gõ đang soạn: để ô nhập xử lý */
- if(e.target&&e.target.closest&&e.target.closest('#qp'))return false;  /* đang chỉnh thanh trượt chất lượng */
+ if(Lumir.popups.owns(e.target))return false;  /* đang thao tác trong một popup (ví dụ kéo thanh trượt chất lượng) */
  const c=KB_KEYS[e.key];
  if(c){e.preventDefault();kbCode(c,e);return true}
  if((e.ctrlKey||e.metaKey)&&!e.altKey){
@@ -461,7 +421,7 @@ function setKbd(on){
  if(on){kbIn=kbMake();kbIn.focus();toast(T('Keyboard on: typing goes to the phone'))}
  else{if(kbIn){kbIn.remove();kbIn=null}toast(T('Keyboard off'))}
 }
-document.addEventListener('mouseup',e=>{if(kbd&&!(e.target.closest&&e.target.closest('#qp')))setTimeout(()=>{if(kbIn)kbIn.focus()},0)});
+document.addEventListener('mouseup',e=>{if(kbd&&!Lumir.popups.owns(e.target))setTimeout(()=>{if(kbIn)kbIn.focus()},0)});
 window.addEventListener('focus',()=>{if(kbd&&kbIn)kbIn.focus()});
 
 /* Ánh xạ phím nằm ở scripts/keymap.js (nạp sau file này) và nối qua window.LumirKeymap; thiếu file đó thì mọi thứ khác vẫn chạy. */
@@ -472,17 +432,17 @@ document.addEventListener('keydown',e=>{
  if(kbd&&kbKey(e))return;
  if(e.key==='F11'){e.preventDefault();setFull(!full)}
  else if(e.key==='F3'){e.preventDefault();setRailHidden(!document.body.classList.contains('rail-hidden'))}   /* ẩn/hiện thanh công cụ */
- else if(e.key==='Escape'&&!$('#qp').hidden){e.preventDefault();setQP(false)}
+ else if(e.key==='Escape'&&Lumir.popups.closeTop()){e.preventDefault()}   /* Esc đóng popup mở sau cùng */
  else if(e.key==='Escape'&&full){e.preventDefault();setFull(false)}
 });
 if(win&&win.onResized)win.onResized(()=>requestAnimationFrame(fit)).catch(()=>{});
 new ResizeObserver(fit).observe($('#stage'));
 mq.addEventListener('change',applyTheme);
 /* Đổi ngôn ngữ / giao diện ở cửa sổ chính → cập nhật ngay ở đây */
-window.addEventListener('storage',e=>{if(e.key==='lumir'){loadPrefs();applyTheme();applyLang();renderQ()}});
+window.addEventListener('storage',e=>{if(e.key==='lumir'){loadPrefs();applyTheme();applyLang();Q.render()}});
 
 async function init(){
- loadPrefs();loadQ();applyTheme();buildRail();applyLang();renderQ();
+ loadPrefs();Q.load();applyTheme();buildRail();applyLang();Q.render();
  if(demo){serial='DEMO';setDevice({name:'Demo phone',resolution:'1080×2400',status:'connected'});setPin(pinned,false);return}
  try{const c=await call('phone_context');serial=c.serial;setDevice(c.device||{status:'disconnected'})}
  catch(e){setDevice({status:'disconnected'})}

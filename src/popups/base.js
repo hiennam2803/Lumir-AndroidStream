@@ -1,5 +1,5 @@
-/* LUMIR · Popup có thể di chuyển + phóng/thu.
-   LumirPopups.attach(el, { id, handle, move, grip })
+/* LUMIR · popups/base.js — hành vi dùng chung của mọi popup: kéo di chuyển + phóng/thu (+ nhớ vị trí, giữ trong cửa sổ).
+   Không tự biết popup nào tồn tại: registry.js gọi Lumir.popups.base.attach(el, { id, handle, move, grip }) cho từng popup đã đăng ký.
      - Di chuyển: kéo phần `handle` (selector con của el). move:false = el đã có cách kéo riêng.
      - Phóng/thu: kéo góc dưới-phải, hoặc Ctrl + lăn chuột trên popup; nhấp đúp vào góc = về 100%.
      - Nhớ vị trí + tỉ lệ (localStorage, theo id) và luôn giữ popup trong cửa sổ.
@@ -8,9 +8,7 @@
 'use strict';
 const MIN_S = 0.6, MAX_S = 2.5, KEY = 'lumir-popup:';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const P = window.LumirPhone, T = P && P.T ? P.T : k => k;
-if (P && P.VI) Object.assign(P.VI, { 'Drag to zoom · Ctrl+wheel · double-click to reset': 'Kéo để phóng/thu · Ctrl+cuộn · nhấp đúp để về 100%', 'Drag to move': 'Kéo để di chuyển' });
-const HINT = 'Drag to zoom · Ctrl+wheel · double-click to reset';
+const HINT = 'Drag to zoom · Ctrl+wheel · double-click to reset', MOVE = 'Drag to move';   /* khoá tiếng Anh; bản dịch do registry.relabel(T) áp lại khi đổi ngôn ngữ */
 const NO_DRAG = 'button,input,select,textarea,a,label,[contenteditable]';
 
 function attach(el, o = {}) {
@@ -45,7 +43,7 @@ function attach(el, o = {}) {
   if (movable) {
     const h = handleSel ? el.querySelector(handleSel) : el;
     if (h) {
-      h.classList.add('pz-handle'); if (!h.title) h.title = T('Drag to move');
+      h.classList.add('pz-handle'); el._pzHandle = h; h.title = MOVE;
       h.addEventListener('pointerdown', e => {
         if (e.button > 0 || e.target.closest(NO_DRAG)) return;
         materialize(); const r = el.getBoundingClientRect();
@@ -65,7 +63,7 @@ function attach(el, o = {}) {
 
   /* ── Phóng / thu bằng góc dưới-phải ── */
   const grip = document.createElement('i');
-  grip.className = 'pz-grip' + (o.grip === 'sticky' ? ' sticky' : ''); grip.title = T(HINT); grip.setAttribute('aria-hidden', 'true');
+  grip.className = 'pz-grip' + (o.grip === 'sticky' ? ' sticky' : ''); grip.title = HINT; el._pzGripEl = grip; grip.setAttribute('aria-hidden', 'true');
   grip.innerHTML = '<svg viewBox="0 0 12 12"><path d="M11 5L5 11M11 8L8 11"/></svg>';
   el.appendChild(grip);
   /* Bảng có thể bị dựng lại bằng innerHTML (bảng ánh xạ phím) → gắn lại góc phóng/thu nếu bị xoá */
@@ -106,7 +104,9 @@ function attach(el, o = {}) {
   return el._pz;
 }
 
-window.LumirPopups = { attach };
-attach(document.getElementById('qp'), { id: 'qp', handle: '.qp-h' });
-attach(document.getElementById('perfPanel'), { id: 'perf', handle: '.perf-head', grip: 'sticky' });
+const L = (window.Lumir = window.Lumir || {});
+L.popups = L.popups || {};
+/* Đặt lại chú thích (title) theo ngôn ngữ hiện tại. T: hàm dịch của cửa sổ. */
+function relabel(el, T) { if (el._pzHandle) el._pzHandle.title = T(MOVE); if (el._pzGripEl) el._pzGripEl.title = T(HINT); }
+L.popups.base = { attach, relabel };
 })();

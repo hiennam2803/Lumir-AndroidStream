@@ -569,7 +569,8 @@ function build() {
   phoneEl.appendChild(layer); ctls = layer.querySelector('.gk-ctls'); hud = layer.querySelector('.gk-hud');
   panel = document.createElement('section'); panel.className = 'gk-panel'; panel.id = 'gkPanel'; panel.hidden = true; panel.setAttribute('aria-label', 'Game Key Mapping');
   document.body.appendChild(panel);
-  if (window.LumirPopups) window.LumirPopups.attach(panel, { id: 'keymap', move: false });   /* kéo bảng do panelDown xử lý; popups lo phóng/thu */
+  /* Bảng tự điều khiển hiển thị + tự kéo (panelDown); registry chỉ gắn phóng/thu và coi là popup (owns) */
+  if (window.Lumir && window.Lumir.popups) window.Lumir.popups.register({ id: 'keymap', el: panel, external: true, move: false });
   fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = '.json,application/json'; fileIn.hidden = true; document.body.appendChild(fileIn);
   fileIn.addEventListener('change', () => doImport(fileIn.files && fileIn.files[0]));
 

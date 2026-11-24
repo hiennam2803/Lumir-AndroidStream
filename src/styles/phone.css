@@ -124,6 +124,7 @@ html.is-fullscreen body.rail-hidden .rail{display:none}
 .qp-d{font-size:12px;color:var(--tx2);min-height:17px}
 .qp-f{display:flex;flex-direction:column;gap:6px}
 .qp-seg.f4{grid-template-columns:repeat(4,1fr)}
+.qp-seg.f3{grid-template-columns:repeat(3,1fr)}
 .qp-f .qp-d{min-height:0}
 .qp-f .qp-d:empty{display:none}
 .qp-c{display:flex;flex-direction:column;gap:10px}
@@ -157,7 +158,7 @@ body.rail-hidden .perf-panel,html.is-fullscreen .perf-panel{right:8px;width:min(
 /* Bảng PERF nhiều chỉ số hơn: cuộn khi cửa sổ thấp */
 .perf-panel{max-height:calc(100vh - 52px);overflow-y:auto}
 .perf-metric b{font-size:15px;white-space:nowrap}
-/* Popup di chuyển + phóng/thu (popups.js) */
+/* Popup di chuyển + phóng/thu (popups/base.js) */
 .pz-handle{cursor:grab;touch-action:none}
 .pz-moving .pz-handle,.pz-moving{cursor:grabbing}
 .pz-moving{user-select:none;transition:none!important}

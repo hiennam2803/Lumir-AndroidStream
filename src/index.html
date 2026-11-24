@@ -1,111 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LUMIR — Android Device Manager</title>
-<link rel="stylesheet" href="styles/fonts.css">
-<link rel="stylesheet" href="styles/main.css">
-<link rel="stylesheet" href="styles/patches.css">
-<link rel="stylesheet" href="styles/tauri.css">
-<script src="scripts/tauri-bridge.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LUMIR — Android Device Manager</title>
+  <link rel="stylesheet" href="styles/fonts.css">
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/patches.css">
+  <link rel="stylesheet" href="styles/tauri.css">
+  <script src="scripts/tauri-bridge.js"></script>
 </head>
+
 <body>
-<svg width="0" height="0" style="position:absolute"><defs>
-<symbol id="i-usb" viewBox="0 0 24 24"><circle cx="7" cy="14" r="2.5"/><circle cx="19" cy="9" r="1.8"/><rect x="14" y="17" width="4" height="4" rx=".5"/><path d="M12 3v14M12 12l-3.5 1.2M12 9l5-0.3M12 3l-1.8 2.5h3.6z"/></symbol>
-<symbol id="i-net" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M2 9a14 14 0 0 1 20 0"/></symbol>
-<symbol id="i-ref" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5"/></symbol>
-<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></symbol>
-<symbol id="i-set" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
-<symbol id="i-ph" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
-<symbol id="i-dn" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
-<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
-<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
-<symbol id="i-off" viewBox="0 0 24 24"><path d="M12 3v8M7 6.5a8 8 0 1 0 10 0"/></symbol>
-<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
-<symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
-</defs></svg>
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <symbol id="i-usb" viewBox="0 0 24 24">
+        <circle cx="7" cy="14" r="2.5" />
+        <circle cx="19" cy="9" r="1.8" />
+        <rect x="14" y="17" width="4" height="4" rx=".5" />
+        <path d="M12 3v14M12 12l-3.5 1.2M12 9l5-0.3M12 3l-1.8 2.5h3.6z" />
+      </symbol>
+      <symbol id="i-net" viewBox="0 0 24 24">
+        <path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0" />
+        <circle cx="12" cy="19.5" r="1" />
+        <path d="M2 9a14 14 0 0 1 20 0" />
+      </symbol>
+      <symbol id="i-ref" viewBox="0 0 24 24">
+        <path d="M20 11a8 8 0 0 0-14-4L4 9M4 4v5h5M4 13a8 8 0 0 0 14 4l2-2M20 20v-5h-5" />
+      </symbol>
+      <symbol id="i-more" viewBox="0 0 24 24">
+        <circle cx="5" cy="12" r=".6" />
+        <circle cx="12" cy="12" r=".6" />
+        <circle cx="19" cy="12" r=".6" />
+      </symbol>
+      <symbol id="i-set" viewBox="0 0 24 24">
+        <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+        <circle cx="16" cy="7" r="2" />
+        <circle cx="8" cy="17" r="2" />
+      </symbol>
+      <symbol id="i-ph" viewBox="0 0 24 24">
+        <rect x="7" y="2.5" width="10" height="19" rx="2.5" />
+        <path d="M11 18.5h2" />
+      </symbol>
+      <symbol id="i-dn" viewBox="0 0 24 24">
+        <path d="M6 9l6 6 6-6" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="M6 6l12 12M18 6L6 18" />
+      </symbol>
+      <symbol id="i-link" viewBox="0 0 24 24">
+        <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+      </symbol>
+      <symbol id="i-off" viewBox="0 0 24 24">
+        <path d="M12 3v8M7 6.5a8 8 0 1 0 10 0" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect x="9" y="9" width="11" height="11" rx="2" />
+        <path d="M5 15V6a2 2 0 0 1 2-2h8" />
+      </symbol>
+    </defs>
+  </svg>
 
-<header>
-  <div class="brand">
-    <div class="logo"><svg><use href="#i-ph"/></svg></div>
-    <b>LUMIR</b><span>Android Device Manager</span>
-  </div>
-  <div class="hr">
-    <div class="seg" id="flt" title="Filter devices">
-      <button class="on" data-f="all">All</button><button data-f="connected">Connected</button><button data-f="offline">Offline</button>
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <img src="/app-icon.png" alt="LUMIR">
+      </div>
+      <b>LUMIR</b><span>Android Device Manager</span>
     </div>
-    <div class="sys" id="adbSys"><i class="dot"></i><span id="adbTxt">ADB service ready</span></div>
-    <button class="btn ico ghost" id="bSet" title="Settings" aria-label="Settings"><svg><use href="#i-set"/></svg></button>
-    <button class="btn ico ghost" id="bMore" title="More options" aria-label="More options"><svg><use href="#i-more"/></svg></button>
-  </div>
-</header>
-
-<main>
-  <div class="tabs" role="tablist">
-    <button class="tab on" data-t="usb" role="tab"><svg><use href="#i-usb"/></svg>USB<span class="tc">0</span></button>
-    <button class="tab" data-t="lan" role="tab"><svg><use href="#i-net"/></svg>LAN<span class="tc">0</span></button>
-  </div>
-  <section class="panel act" data-t="usb">
-    <div class="ph">
-      <div class="ti"><svg><use href="#i-usb"/></svg><h2>USB Devices</h2><span class="cnt" data-cnt>0</span><span class="cs" data-cs></span></div>
-      <button class="btn sm" data-a="refresh"><svg><use href="#i-ref"/></svg>Refresh</button>
-      <button class="btn sm pri" data-a="all"><svg><use href="#i-link"/></svg>Connect all</button>
-      <button class="btn ico sm ghost" data-a="smore" aria-label="More options"><svg><use href="#i-more"/></svg></button>
+    <div class="hr">
+      <div class="seg" id="flt" title="Filter devices">
+        <button class="on" data-f="all">All</button><button data-f="connected">Connected</button><button
+          data-f="offline">Offline</button>
+      </div>
+      <div class="sys" id="adbSys"><i class="dot"></i><span id="adbTxt">ADB service ready</span></div>
+      <button class="btn ico ghost" id="bSet" title="Settings" aria-label="Settings"><svg>
+          <use href="#i-set" />
+        </svg></button>
+      <button class="btn ico ghost" id="bMore" title="More options" aria-label="More options"><svg>
+          <use href="#i-more" />
+        </svg></button>
     </div>
-    <div class="list"></div>
-  </section>
-  <section class="panel" data-t="lan">
-    <div class="ph">
-      <div class="ti"><svg><use href="#i-net"/></svg><h2>LAN Devices</h2><span class="cnt" data-cnt>0</span><span class="cs" data-cs></span></div>
-      <button class="btn sm" data-a="refresh"><svg><use href="#i-ref"/></svg>Refresh</button>
-      <button class="btn sm pri" data-a="add"><svg><use href="#i-plus"/></svg>Add device</button>
-      <button class="btn ico sm ghost" data-a="smore" aria-label="More options"><svg><use href="#i-more"/></svg></button>
+  </header>
+
+  <main>
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-t="usb" role="tab"><svg>
+          <use href="#i-usb" />
+        </svg>USB<span class="tc">0</span></button>
+      <button class="tab" data-t="lan" role="tab"><svg>
+          <use href="#i-net" />
+        </svg>LAN<span class="tc">0</span></button>
     </div>
-    <div class="list"></div>
-  </section>
-</main>
+    <section class="panel act" data-t="usb">
+      <div class="ph">
+        <div class="ti"><svg>
+            <use href="#i-usb" />
+          </svg>
+          <h2>USB Devices</h2><span class="cnt" data-cnt>0</span><span class="cs" data-cs></span>
+        </div>
+        <button class="btn sm" data-a="refresh"><svg>
+            <use href="#i-ref" />
+          </svg>Refresh</button>
+        <button class="btn sm pri" data-a="all"><svg>
+            <use href="#i-link" />
+          </svg>Connect all</button>
+        <button class="btn ico sm ghost" data-a="smore" aria-label="More options"><svg>
+            <use href="#i-more" />
+          </svg></button>
+      </div>
+      <div class="list"></div>
+    </section>
+    <section class="panel" data-t="lan">
+      <div class="ph">
+        <div class="ti"><svg>
+            <use href="#i-net" />
+          </svg>
+          <h2>LAN Devices</h2><span class="cnt" data-cnt>0</span><span class="cs" data-cs></span>
+        </div>
+        <button class="btn sm" data-a="refresh"><svg>
+            <use href="#i-ref" />
+          </svg>Refresh</button>
+        <button class="btn sm pri" data-a="add"><svg>
+            <use href="#i-plus" />
+          </svg>Add device</button>
+        <button class="btn ico sm ghost" data-a="smore" aria-label="More options"><svg>
+            <use href="#i-more" />
+          </svg></button>
+      </div>
+      <div class="list"></div>
+    </section>
+  </main>
 
-<footer>
-  <span><i class="dot" style="display:inline-block;margin-right:6px"></i>Ready</span>
-  <span class="sp"></span>
-  <span>Total devices <b id="sT">0</b></span>
-  <span>Connected <b id="sC">0</b></span>
-  <span>Last refresh <b id="sR">--:--:--</b></span>
-</footer>
+  <footer>
+    <span><i class="dot" style="display:inline-block;margin-right:6px"></i>Ready</span>
+    <span class="sp"></span>
+    <span>Total devices <b id="sT">0</b></span>
+    <span>Connected <b id="sC">0</b></span>
+    <span>Last refresh <b id="sR">--:--:--</b></span>
+  </footer>
 
-<div class="menu" id="menu"></div>
-<div id="toast"></div>
+  <div class="menu" id="menu"></div>
+  <div id="toast"></div>
 
-<div class="ov" id="ovAdd"><div class="dlg" role="dialog" aria-label="Add device">
-  <div class="dh"><h3>Add LAN device</h3><button class="btn ico ghost sm" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-  <div class="db">
-    <div class="two">
-      <label class="fl"><span>Device IP address</span><input class="in" id="aIp" placeholder="192.168.1.42" autocomplete="off"></label>
-      <label class="fl"><span>Port</span><input class="in" id="aPort" value="5555" inputmode="numeric"></label>
+  <div class="ov" id="ovAdd">
+    <div class="dlg" role="dialog" aria-label="Add device">
+      <div class="dh">
+        <h3>Add LAN device</h3><button class="btn ico ghost sm" data-close aria-label="Close"><svg>
+            <use href="#i-x" />
+          </svg></button>
+      </div>
+      <div class="db">
+        <div class="two">
+          <label class="fl"><span>Device IP address</span><input class="in" id="aIp" placeholder="192.168.1.42"
+              autocomplete="off"></label>
+          <label class="fl"><span>Port</span><input class="in" id="aPort" value="5555" inputmode="numeric"></label>
+        </div>
+        <label class="fl"><span>Device name (optional)</span><input class="in" id="aName"
+            placeholder="Living room tablet" autocomplete="off"></label>
+      </div>
+      <div class="df"><button class="btn" data-close>Cancel</button><button class="btn pri" id="aOk">Add device</button>
+      </div>
     </div>
-    <label class="fl"><span>Device name (optional)</span><input class="in" id="aName" placeholder="Living room tablet" autocomplete="off"></label>
   </div>
-  <div class="df"><button class="btn" data-close>Cancel</button><button class="btn pri" id="aOk">Add device</button></div>
-</div></div>
 
-<div class="ov" id="ovSet"><div class="dlg" role="dialog" aria-label="Settings" style="width:440px">
-  <div class="dh"><h3>Settings</h3><button class="btn ico ghost sm" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
-  <div class="db" style="max-height:70vh;overflow:auto">
-    <div class="sg">General</div>
-    <div class="sr"><span>Theme</span><select class="in" id="sTheme"><option>Dark</option><option>Light</option><option>System</option></select></div>
-    <div class="sr"><span>Language</span><select class="in" id="sLang"><option>English</option><option>Tiếng Việt</option></select></div>
-    <div class="sr"><span>Startup behavior</span><select class="in"><option>Open main panel</option><option>Start in tray</option><option>Restore last session</option></select></div>
-    <div class="sr"><span>Minimize to tray</span><button class="tg on" aria-label="Minimize to tray"></button></div>
-    <div class="sg" style="margin-top:18px">Connection</div>
-    <div class="sr"><span>Default connection mode</span><select class="in"><option>USB</option><option>LAN</option><option>Ask each time</option></select></div>
-    <div class="sr"><span>Auto refresh</span><button class="tg on" aria-label="Auto refresh"></button></div>
-    <div class="sr"><span>Connection timeout</span><select class="in"><option>5 seconds</option><option selected>10 seconds</option><option>30 seconds</option></select></div>
-    <div class="sg" style="margin-top:18px">About</div>
-    <p class="ab"><b>LUMIR</b> · Version 0.1.0 (prototype)<br>Find, connect and manage Android devices over USB and your local network.</p>
+  <div class="ov" id="ovSet">
+    <div class="dlg" role="dialog" aria-label="Settings" style="width:440px">
+      <div class="dh">
+        <h3>Settings</h3><button class="btn ico ghost sm" data-close aria-label="Close"><svg>
+            <use href="#i-x" />
+          </svg></button>
+      </div>
+      <div class="db" style="max-height:70vh;overflow:auto">
+        <div class="sg">General</div>
+        <div class="sr"><span>Theme</span><select class="in" id="sTheme">
+            <option>Dark</option>
+            <option>Light</option>
+            <option>System</option>
+          </select></div>
+        <div class="sr"><span>Language</span><select class="in" id="sLang">
+            <option>English</option>
+            <option>Tiếng Việt</option>
+          </select></div>
+        <div class="sr"><span>Startup behavior</span><select class="in">
+            <option>Open main panel</option>
+            <option>Start in tray</option>
+            <option>Restore last session</option>
+          </select></div>
+        <div class="sr"><span>Minimize to tray</span><button class="tg on" aria-label="Minimize to tray"></button></div>
+        <div class="sg" style="margin-top:18px">Connection</div>
+        <div class="sr"><span>Default connection mode</span><select class="in">
+            <option>USB</option>
+            <option>LAN</option>
+            <option>Ask each time</option>
+          </select></div>
+        <div class="sr"><span>Auto refresh</span><button class="tg on" aria-label="Auto refresh"></button></div>
+        <div class="sr"><span>Connection timeout</span><select class="in">
+            <option>5 seconds</option>
+            <option selected>10 seconds</option>
+            <option>30 seconds</option>
+          </select></div>
+        <div class="sg" style="margin-top:18px">About</div>
+        <p class="ab"><b>LUMIR</b> · Version 0.1.0 (prototype)<br>Find, connect and manage Android devices over USB and
+          your local network.</p>
+      </div>
+      <div class="df"><button class="btn pri" data-close>Done</button></div>
+    </div>
   </div>
-  <div class="df"><button class="btn pri" data-close>Done</button></div>
-</div></div>
-<script src="scripts/main.js"></script>
+  <script src="scripts/main.js"></script>
 </body>
+
 </html>

@@ -1,7 +1,8 @@
 [package]
 name = "lumir"
-version = "0.1.0"
-description = "LUMIR — Android to Windows Interactive Mirroring (UI prototype)"
+version = "1.0.0"
+authors = ["ĐT Văn Hiền <vhdt283@gmail.com>"]
+description = "LUMIR — Android Device Manager"
 edition = "2021"
 
 [lib]
