@@ -1,123 +1,307 @@
-# LUMIR — Desktop UI Prototype (Tauri 2 + Rust)
+# LUMIR — Android Device Manager for Windows
 
-Giao diện **LUMIR Android Device Manager**, bọc trong ứng dụng Tauri 2 cho Windows 10/11.
-Giai đoạn hiện tại (Phase 2): **kết nối USB thật** qua ADB (phát hiện thiết bị, quyền USB debugging, thông tin máy) và **hiển thị truyền màn hình** trong cửa sổ điện thoại nổi. **Chưa** có điều khiển cảm ứng/bàn phím hay LAN.
+LUMIR là ứng dụng desktop dùng để kết nối điện thoại Android với máy tính Windows, xem màn hình điện thoại theo thời gian thực và tương tác bằng chuột, bàn phím hoặc bộ ánh xạ phím chơi game.
 
-## Yêu cầu (Windows)
+Ứng dụng được xây dựng bằng **Tauri 2, Rust, HTML, CSS và JavaScript**. ADB được sử dụng làm lớp giao tiếp với thiết bị Android.
 
-1. Node.js 18+  2. Rust (rustup, toolchain MSVC, >= 1.90)  3. Visual Studio Build Tools (workload "Desktop development with C++")  4. WebView2 (có sẵn trên Win 11 / Win 10 mới).
+> **Trạng thái dự án:** bản prototype/đang phát triển. Một số tính năng, đặc biệt là kết nối LAN và điều khiển trên các thiết bị khác nhau, có thể còn giới hạn tùy môi trường.
 
-## Chạy
+## Tính năng
 
-```
+### 1. Kết nối và quản lý thiết bị Android
+
+- Phát hiện thiết bị Android qua ADB.
+- Hiển thị trạng thái kết nối và thông tin thiết bị.
+- Kết nối, ngắt kết nối và khởi động lại ADB.
+- Hỗ trợ kết nối USB.
+- Có bước đầu hỗ trợ kết nối qua Wi-Fi/LAN bằng `adb connect IP:cổng`.
+- Có chức năng dò tìm thiết bị LAN trong phạm vi mạng được hỗ trợ.
+
+### 2. Truyền màn hình điện thoại
+
+- Mở màn hình điện thoại trong một cửa sổ riêng.
+- Ưu tiên truyền video bằng `scrcpy-server` để giảm độ trễ.
+- Có đường dự phòng `screenrecord` khi scrcpy-server không hoạt động.
+- Rust xử lý luồng video và chuyển dữ liệu H.264 sang frontend qua Tauri Channel.
+- Frontend giải mã bằng WebCodecs `VideoDecoder` và hiển thị lên Canvas.
+- Tự khởi động lại luồng trong một số trường hợp lỗi hoặc khi tiến trình ghi màn hình kết thúc.
+
+Một số giới hạn hiện tại:
+
+- Chưa truyền âm thanh.
+- Việc xoay màn hình có thể chưa được xử lý đồng nhất ở mọi trạng thái.
+- Chất lượng và độ trễ phụ thuộc vào cáp USB, thiết bị Android, encoder và cấu hình máy tính.
+
+### 3. Điều khiển điện thoại
+
+- Gửi phím điều hướng và thao tác nhập liệu.
+- Hỗ trợ chạm, vuốt và cuộn bằng chuột.
+- Theo dõi các điểm chạm đang được giữ và gửi lệnh nhả khi cần thiết để hạn chế tình trạng ngón chạm bị kẹt.
+- Có các thao tác điều khiển cửa sổ điện thoại như thay đổi kích thước, luôn nổi và toàn màn hình.
+
+Khả năng điều khiển cụ thể có thể phụ thuộc vào phiên bản Android và quyền ADB của thiết bị.
+
+### 4. Game Key Mapping
+
+Game Key Mapping cho phép sử dụng bàn phím máy tính để mô phỏng thao tác chạm trên điện thoại khi chơi game.
+
+Các loại điều khiển:
+
+| Loại | Mô tả |
+|---|---|
+| Circular Joystick | Joystick ảo 8 hướng, mặc định dùng WASD và có thể gán lại phím |
+| Directional Joystick | Bốn hướng riêng biệt; có thể nhấn đồng thời để di chuyển chéo |
+| Custom Button | Nút tùy chỉnh, hỗ trợ nhấn, giữ và thả |
+
+Các thao tác cấu hình:
+
+- Thêm, chọn, di chuyển và thay đổi kích thước điều khiển.
+- Gán phím bằng cách chọn ô phím rồi nhấn phím mong muốn.
+- Xóa điều khiển và lưu cấu hình.
+- Chuyển giữa chế độ chỉnh sửa và chế độ chơi.
+- Tạo, đổi tên, nhân bản và xóa profile.
+- Nhập và xuất profile dưới dạng JSON.
+- Có thể gắn profile với game đang chạy thông qua thông tin ứng dụng foreground.
+
+**Chat Keyboard và Game Key Mapping là hai chức năng riêng biệt.** Chúng sử dụng bàn phím vật lý nên không hoạt động đồng thời; khi bật một chức năng, chức năng còn lại sẽ được tắt hoặc khóa theo trạng thái hiện tại.
+
+#### Lưu profile
+
+- Dữ liệu được lưu trong file `keymap.json` tại thư mục dữ liệu riêng của ứng dụng.
+- Trên Windows, thư mục dữ liệu thường nằm dưới `%APPDATA%\com.lumir.desktop\`.
+- Tọa độ được chuẩn hóa theo khung hình để giữ vị trí tương đối khi thay đổi kích thước cửa sổ hoặc độ phân giải.
+- Cơ chế lưu có file tạm và bản sao dự phòng để hỗ trợ phục hồi khi dữ liệu bị lỗi.
+- Profile có thể được xuất ra thư mục Downloads và nhập lại bằng hộp thoại chọn file.
+
+### 5. Performance Monitor
+
+LUMIR có bảng theo dõi hiệu năng ở cửa sổ điện thoại:
+
+1. Kết nối thiết bị và mở cửa sổ điện thoại.
+2. Nhấn `F2` để bật/tắt bảng PERF.
+3. Nhấn `Esc` để đóng bảng.
+4. Nhấn `F3` để ẩn/hiện thanh công cụ bên phải.
+5. Dùng **Export CSV** để xuất tối đa 120 mẫu gần nhất.
+
+Các chỉ số được theo dõi gồm:
+
+- **Packet FPS:** số packet khung hình H.264 frontend nhận mỗi giây.
+- **Decoder FPS:** số frame WebCodecs giải mã đầu ra mỗi giây.
+- **Render FPS:** số lần callback vẽ frame lên Canvas mỗi giây.
+- **Decode Queue:** giá trị `VideoDecoder.decodeQueueSize` tại thời điểm lấy mẫu.
+- **Decode → output:** thời gian gần đúng từ lúc gọi `decode()` đến callback output.
+- **Canvas draw:** thời gian gọi `drawImage()` và xử lý đồng bộ liên quan.
+- **JS memory:** bộ nhớ JavaScript nếu WebView cung cấp `performance.memory`.
+- **Decoder errors:** số lỗi decoder được ghi nhận.
+
+Lưu ý: đây là các chỉ số đo ở phía WebView, không phải phép đo toàn bộ độ trễ từ điện thoại đến màn hình máy tính. Hiện chưa đo trực tiếp USB input FPS, thời gian xử lý Rust, Tauri transit time, GPU presentation hoặc số frame drop thực tế.
+
+Xem thêm: [`PERFORMANCE-MONITOR.md`](PERFORMANCE-MONITOR.md).
+
+## Công nghệ
+
+| Thành phần | Công nghệ |
+|---|---|
+| Desktop framework | Tauri 2 |
+| Backend | Rust |
+| Frontend | HTML, CSS, JavaScript |
+| Android communication | Android Debug Bridge (ADB) |
+| Video transport | scrcpy-server / `screenrecord` fallback |
+| Video decoding | WebCodecs `VideoDecoder` |
+| Rendering | HTML Canvas |
+| Data format | JSON |
+| Tests | Node.js Test Runner, Playwright, Rust tests |
+
+## Yêu cầu môi trường
+
+Dự án hiện hướng tới **Windows 10/11**.
+
+Cần cài đặt:
+
+1. **Node.js 18 trở lên** và npm.
+2. **Rust** thông qua rustup, với toolchain MSVC.
+3. **Visual Studio Build Tools**, workload `Desktop development with C++`.
+4. **Microsoft Edge WebView2 Runtime**.
+5. Điện thoại Android đã bật **Developer options** và **USB debugging**.
+6. Cáp USB có hỗ trợ truyền dữ liệu nếu kết nối qua USB.
+
+Phiên bản Rust nên đáp ứng yêu cầu của các dependency trong `src-tauri/Cargo.toml` và `Cargo.lock`.
+
+## Cài đặt và chạy ở chế độ phát triển
+
+Clone hoặc giải nén dự án, sau đó mở terminal tại thư mục gốc:
+
+```bash
 npm install
 npm run tauri dev
 ```
 
-## ADB
+Tauri sẽ khởi chạy frontend và backend Rust ở chế độ phát triển.
 
-Lumir tìm `adb` theo thứ tự: biến môi trường `LUMIR_ADB` → thư mục `adb/` cạnh app → (khi dev) `src-tauri/adb/` → `PATH`.
+## Cấu hình ADB
 
-Khi dev: tải [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) và chép `adb.exe`, `AdbWinApi.dll`, `AdbWinUsbApi.dll` vào `src-tauri/adb/` (hoặc để `adb` trong PATH).
+LUMIR tìm ADB theo thứ tự:
 
-Khi đóng gói: thêm vào `bundle` trong `tauri.conf.json` dòng `"resources": ["adb/*"]` (sau khi thư mục `src-tauri/adb/` đã có file).
+1. Đường dẫn trong biến môi trường `LUMIR_ADB`.
+2. Thư mục `adb/` cạnh ứng dụng.
+3. Thư mục `src-tauri/adb/` khi chạy ở chế độ phát triển.
+4. ADB có sẵn trong `PATH`.
 
-## Truyền màn hình
+Repository có thư mục `src-tauri/adb/` để chứa các thành phần ADB dành cho Windows. Nếu cần thay thế hoặc cập nhật, tải **Android SDK Platform-Tools** từ trang chính thức:
 
-Không cần cài gì lên điện thoại. Rust chạy `adb exec-out screenrecord --output-format=h264 --size WxH --bit-rate 8000000 -`, tách luồng H.264 thành từng khung (`h264.rs`), gửi nhị phân qua Tauri `Channel` (`stream.rs`). Cửa sổ điện thoại (`phone.js`) giải mã bằng **WebCodecs `VideoDecoder`** (có sẵn trong WebView2) và vẽ lên `<canvas>`.
+https://developer.android.com/tools/releases/platform-tools
 
-- Cạnh dài video ≤ 1280 px, 8 Mbps. Nếu encoder từ chối `--size`, tự thử lại với kích thước gốc của máy.
-- `screenrecord` tự dừng sau 180 giây: app tự nối lại, hình cuối được giữ nguyên trong lúc chờ khung IDR mới.
-- Màn hình tĩnh thì encoder không xuất khung mới; khung cuối được đẩy đi sau 25 ms im lặng.
-- Lỗi giải mã → tự khởi động lại luồng (tối đa 4 lần), sau đó hiện lỗi kèm nút **Thử lại**.
-- Đóng cửa sổ điện thoại hoặc rút cáp → dừng tiến trình adb.
-- Mở `src/phone.html` bằng trình duyệt sẽ chạy chế độ demo (hình mẫu) để xem bố cục.
+Các file Windows thường cần có:
 
-Giới hạn đã biết: xoay ngang màn hình điện thoại thì hình bị co vào khung dọc (cần đọc hướng xoay và mở lại luồng — để giai đoạn sau); không có âm thanh.
+- `adb.exe`
+- `AdbWinApi.dll`
+- `AdbWinUsbApi.dll`
 
-Test phần tách H.264: `rustc --test src-tauri/src/h264.rs -o h264test && ./h264test` (hoặc `cargo test` trong `src-tauri`).
+Không tải các file ADB từ nguồn không đáng tin cậy.
 
-## Game Key Mapping (chơi game bằng bàn phím máy tính)
+## Kết nối điện thoại qua USB
 
-Nút **gamepad** trên thanh dọc (tách hẳn khỏi nút **keyboard** = Chat Keyboard, chỉ để gõ chữ). Hai hệ thống có module, state và sự kiện riêng; chúng dùng chung bàn phím vật lý nên không chạy cùng lúc (bật cái này thì cái kia tắt; đang sửa mapping thì không bật được Chat Keyboard).
+1. Bật Developer options trên điện thoại Android.
+2. Bật **USB debugging**.
+3. Kết nối điện thoại với máy tính bằng cáp USB hỗ trợ dữ liệu.
+4. Mở LUMIR.
+5. Chấp nhận hộp thoại cho phép USB debugging trên điện thoại.
+6. Chọn thiết bị trong ứng dụng để kết nối.
 
-**Dùng:** bấm nút gamepad → chế độ chỉnh sửa (màn hình tối ~25%, bảng công cụ kéo/thu gọn được) → thêm điều khiển, kéo để di chuyển, kéo chấm nhỏ ở mép để đổi cỡ, chọn rồi gán phím (bấm ô phím → nhấn phím), `Delete` để xoá → **Save** (lưu, ở lại) · **Done** (lưu + chơi) · **Cancel** (bỏ thay đổi). Khi chơi có thanh nhỏ phía trên: đổi profile, **Sửa**, **Dừng**.
+Nếu thiết bị không xuất hiện, kiểm tra cáp, cổng USB, driver của thiết bị và trạng thái ADB.
 
-| Loại | Hành vi |
-|---|---|
-| Circular Joystick | 8 hướng, mặc định WASD (gán lại được). Chạm xuống ở tâm rồi trượt mượt tới hướng giữ; chéo chuẩn hoá (không nhanh hơn); A+D triệt tiêu nhau |
-| Directional Joystick | 4 nút W/A/S/D rời nhau, mỗi nút kéo/đổi cỡ độc lập; nhấn 2 nút = 2 ngón = đi chéo |
-| Custom Button | Phím bất kỳ, đặt tên, kích thước, vị trí; nhấn = chạm, giữ = giữ, thả = nhấc |
+## Kết nối qua Wi-Fi/LAN
 
-Phím dành cho cửa sổ nên không gán được: `F3`, `F11`, `Escape`, phím Windows. Mỗi phím chỉ thuộc một ô trong một profile. Tối đa 9 ngón cùng lúc (1 ngón dành cho chuột); quá thì lần nhấn đó bị bỏ qua.
+Đường kết nối LAN hiện hỗ trợ bước kết nối bằng địa chỉ IP và cổng ADB.
 
-**Profile:** tạo / đặt tên / đổi tên / nhân bản / xoá; mỗi profile lưu nền tảng (Android, máy, độ phân giải, hướng), danh sách điều khiển, loại, phím, toạ độ, kích thước, và game gắn kèm (nút ⌖ nhận diện game đang chạy qua `dumpsys window`; mở lại thì tự chọn profile theo game, tắt được). **⋯ → Import / Export** JSON (xuất ra thư mục Tải xuống; nhập bằng hộp chọn file).
+### Android 11 trở lên
 
-**Lưu trữ:** `keymap.json` riêng trong thư mục dữ liệu của app (Windows: `%APPDATA%\com.lumir.desktop\`), nhiều profile, toạ độ chuẩn hoá 0–1 trên khung hình, kích thước = đường kính / cạnh ngắn của khung → vị trí không đổi khi đổi độ phân giải hay cỡ cửa sổ. Ghi nguyên tử (file tạm → `.bak` → đổi tên); file hỏng được giữ lại thành `keymap.corrupt-<giờ>.json` và khôi phục từ `.bak`. Lưu ở cửa sổ này thì cửa sổ điện thoại khác tự nạp lại.
+1. Điện thoại và máy tính kết nối cùng mạng Wi-Fi.
+2. Trên điện thoại, mở Developer options và bật **Wireless debugging**.
+3. Lấy địa chỉ IP và cổng kết nối hiển thị trên điện thoại.
+4. Trong LUMIR, mở tab LAN và thêm thiết bị bằng IP cùng cổng tương ứng.
+5. Chọn kết nối.
 
-**An toàn ngón chạm:** thoát chế độ chơi, mất focus, ẩn/thu nhỏ cửa sổ, rút cáp, đóng cửa sổ → nhả hết phím và ngón. Phía Rust (`input.rs::PointerTracker`) theo dõi các ngón đang giữ: nhả được tất cả (`touch_release_all`, cả khi `Link` bị huỷ) và bỏ các lệnh Move/Up tới muộn — thứ nếu lọt vào scrcpy-server sẽ tạo "ngón ma" kẹt trên màn hình.
+### Android phiên bản cũ hơn
 
-**Giới hạn:** cần kênh điều khiển scrcpy (đa điểm chạm không có đường dự phòng `input`/evdev); hết bể 9 ngón thì bỏ lần nhấn; profile không tự quy đổi khi xoay máy (cảnh báo hướng ở bảng; xoay máy giữa chừng thì nhả hết); bảng công cụ khá rộng so với cửa sổ điện thoại dọc nhỏ — kéo đi hoặc thu gọn.
+Có thể cần kết nối USB lần đầu và bật ADB TCP/IP bằng lệnh:
 
-**Kiểm thử:** `npm run test:core` (Node: schema, profile, xung đột phím, engine nhấn/giữ/thả đa điểm + fuzz bất biến) · `npm run test:e2e` (Playwright + Chromium, mock Tauri) · `npm run test:rust` (`cargo test`: lưu JSON/phục hồi, `PointerTracker`, phân tích `dumpsys`, command qua mock IPC).
-
-## Build bộ cài
-
+```bash
+adb tcpip 5555
 ```
+
+Sau đó lấy địa chỉ IP của điện thoại và kết nối:
+
+```bash
+adb connect IP:5555
+```
+
+Thay `IP` bằng địa chỉ IP thực tế của điện thoại.
+
+**Giới hạn:** ghép nối bằng mã (`adb pair`) và tự động dò tìm thiết bị có thể chưa được hỗ trợ đầy đủ trong phiên bản hiện tại. Kết nối Wi-Fi thường có độ trễ cao hơn USB.
+
+## Chạy kiểm thử
+
+Chạy các lệnh tại thư mục gốc dự án.
+
+### JavaScript core tests
+
+```bash
+npm run test:core
+```
+
+Kiểm thử schema, profile, xung đột phím và engine xử lý thao tác nhấn/giữ/thả.
+
+### End-to-end tests
+
+```bash
+npm run test:e2e
+```
+
+Chạy kiểm thử giao diện Game Key Mapping với Playwright và Tauri mock IPC. Môi trường kiểm thử cần có các dependency tương ứng.
+
+### Rust tests
+
+```bash
+npm run test:rust
+```
+
+Chạy bộ kiểm thử Rust, bao gồm các phần lưu/đọc dữ liệu, phục hồi file, theo dõi điểm chạm và xử lý lệnh.
+
+## Build ứng dụng Windows
+
+```bash
 npm run tauri build
 ```
 
-Kết quả: `src-tauri/target/release/bundle/nsis/LUMIR_0.1.0_x64-setup.exe`
+Cấu hình Tauri hiện tại tạo bộ cài Windows dạng **NSIS**.
 
-## Cấu trúc
+Đường dẫn đầu ra dự kiến:
 
-```
-src/                     frontend (không cần Vite, được đóng gói thẳng vào app)
-  index.html             markup gốc
-  styles/main.css        CSS gốc, giữ nguyên
-  styles/fonts.css       @font-face Inter (cục bộ)
-  styles/tauri.css       override chỉ áp dụng trong Tauri
-  scripts/main.js        JS gốc (sửa 2 dòng lỗi: $$ và regex IP)
-  scripts/keymap-core.js  Game Key Mapping: schema, profile, engine (thuần, có test)
-  scripts/keymap.js       Game Key Mapping: giao diện chỉnh sửa, chế độ chơi, lưu/nạp
-  styles/keymap.css       Game Key Mapping
-  scripts/phone.js  cửa sổ điện thoại: giải mã WebCodecs, vẽ canvas, nút điều hướng
-  scripts/tauri-bridge.js  kéo cửa sổ, Thu nhỏ, Phóng to, Đóng
-  assets/fonts/          Inter Variable (latin, latin-ext, vietnamese)
-src-tauri/
-  src/main.rs, src/lib.rs
-  src/adb.rs        chạy adb (timeout), phân tích đầu ra
-  src/device.rs     registry thiết bị + máy trạng thái kết nối (có unit test)
-  src/keymap.rs     Game Key Mapping: keymap.json (ghi nguyên tử, phục hồi), xuất file, nhận diện game
-  src/commands.rs   Tauri command, event, luồng quét thiết bị, start_stream/stop_stream
-  src/stream.rs     chạy screenrecord, gửi khung H.264 qua Channel
-  src/h264.rs       tách NAL / ghép khung / tính --size (có unit test)
-  capabilities/default.json
-  icons/  tauri.conf.json  Cargo.toml  build.rs
-app-icon.png             icon nguồn (npx tauri icon app-icon.png)
+```text
+src-tauri/target/release/bundle/nsis/
 ```
 
-## Cửa sổ
+Tên file bộ cài phụ thuộc vào phiên bản và cấu hình build trong `src-tauri/tauri.conf.json`.
 
-Mặc định 1024×720 (tự thu nhỏ nếu màn hình nhỏ), tối thiểu 800×560, kéo giãn/phóng to được. Header tự vẽ: kéo ở vùng trống, nhấp đúp để phóng to. Các nút Thu nhỏ / Phóng to / Đóng được thêm lúc chạy trong Tauri vì thiết kế gốc không có.
+## Cấu trúc dự án
 
-## Video độ trễ thấp (scrcpy-server)
+```text
+Lumir-AndroidStream-main/
+├── src/
+│   ├── index.html
+│   ├── phone.html
+│   ├── assets/
+│   │   └── fonts/
+│   ├── scripts/
+│   │   ├── main.js
+│   │   ├── phone.js
+│   │   ├── playout.js
+│   │   ├── popups.js
+│   │   ├── performance.js
+│   │   ├── keymap-core.js
+│   │   ├── keymap.js
+│   │   └── tauri-bridge.js
+│   └── styles/
+│       ├── main.css
+│       ├── phone.css
+│       ├── keymap.css
+│       ├── fonts.css
+│       ├── tauri.css
+│       └── patches.css
+├── src-tauri/
+│   ├── adb/
+│   ├── scrcpy/
+│   ├── icons/
+│   ├── capabilities/
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── lib.rs
+│   │   ├── adb.rs
+│   │   ├── commands.rs
+│   │   ├── ctl.rs
+│   │   ├── device.rs
+│   │   ├── h264.rs
+│   │   ├── input.rs
+│   │   ├── keymap.rs
+│   │   ├── scvideo.rs
+│   │   └── stream.rs
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+├── tests/
+│   ├── keymap-core.test.js
+│   └── e2e-keymap.mjs
+├── PERFORMANCE-MONITOR.md
+├── package.json
+└── README.md
+```
 
-Video mặc định đi qua `scrcpy-server` (file `src-tauri/scrcpy/scrcpy-server-v3.3.3.jar`, code ở `src-tauri/src/scvideo.rs`) thay cho `screenrecord`.
-Nếu scrcpy không chạy được trên một máy, app tự rơi về `screenrecord` (xem log `[lumir] using screenrecord video fallback`).
+## Ghi chú phát triển
 
-- Ép dùng đường cũ để so sánh: đặt biến môi trường `LUMIR_VIDEO=screenrecord` rồi chạy app.
-- Tuỳ chọn encoder (độ trễ thấp) nằm ở hằng `CODEC_OPTIONS` trong `scvideo.rs`.
-- Log server in ra terminal với tiền tố `[lumir/scrcpy-video]`.
-- Chạy `cargo test` trong `src-tauri/` để kiểm tra phần parse header/lệnh.
-
-## Kết nối LAN (Wi-Fi) — bước 1
-
-Thiết bị Wi-Fi dùng chung toàn bộ đường video/điều khiển như USB, chỉ khác serial (`IP:cổng`).
-
-1. Trên điện thoại (Android 11+): Tuỳ chọn nhà phát triển → bật **Gỡ lỗi không dây**. Điện thoại và máy tính phải cùng mạng Wi-Fi.
-   Android cũ hơn: cắm cáp một lần và chạy `adb tcpip 5555`, sau đó rút cáp.
-2. Trong LUMIR: tab **LAN** → **Add device** → nhập IP và cổng (cổng hiển thị ở màn hình Gỡ lỗi không dây, thường 5555 với `adb tcpip`). App tự chạy `adb connect` rồi kết nối.
-3. Danh sách LAN được lưu trên máy (localStorage); thiết bị chưa kết nối vẫn hiện để bấm Connect lại.
-
-Chưa có: ghép nối bằng mã 6 số (`adb pair`, bước 2) và tự tìm thiết bị trong mạng. LAN thường chậm hơn USB: nên dùng preset **Mượt**.
+- Frontend nằm trong `src/` và được Tauri đóng gói trực tiếp thông qua `frontendDist`.
+- Backend Rust nằm trong `src-tauri/`.
+- Các lệnh giao tiếp giữa frontend và backend được đăng ký trong `src-tauri/src/lib.rs`.
+- Logic Game Key Mapping phía frontend được tách thành `keymap-core.js` và `keymap.js`.
+- Logic lưu profile và nhận diện game nằm ở backend Rust trong `keymap.rs`.
+- Luồng video scrcpy được xử lý trong `scvideo.rs`; đường dự phòng `screenrecord` nằm trong `stream.rs`.
+- Cấu hình cửa sổ, quyền và đóng gói nằm trong `src-tauri/tauri.conf.json` cùng thư mục `capabilities/`.
